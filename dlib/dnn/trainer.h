@@ -310,6 +310,7 @@ namespace dlib
             {
                 using namespace std::chrono;
                 last_time = system_clock::now();
+                auto epoch_time = system_clock::now();  // HPZ: Counting
                 clear_average_loss();
                 for (; epoch_pos < data.size() && learning_rate >= min_learning_rate; epoch_pos += mini_batch_size)
                 {
@@ -343,6 +344,8 @@ namespace dlib
                               << "average loss: " << rpad(cast_to_string(get_average_loss()),string_pad) << "  ";
                     print_progress();
                 }
+                std::cout << "Time for Epoch "<< rpad(cast_to_string(epoch_iteration+1),epoch_string_pad) << " is " 
+                                << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
             }
             wait_for_thread_to_pause();
             // if we modified the network at all then be sure to sync the final result.

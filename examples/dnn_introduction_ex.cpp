@@ -87,13 +87,13 @@ int main(int argc, char** argv) try
 
     // So with that out of the way, we can make a network instance.
     net_type net;
-    // And then train it using the MNIST data.  The code below uses mini-batch stochastic
+    // And then train it using the MNIST data.  The code below uses mini-batch stochasticl
     // gradient descent with an initial learning rate of 0.01 to accomplish this.
     dnn_trainer<net_type> trainer(net);
     trainer.set_learning_rate(0.01);
     trainer.set_min_learning_rate(0.00001);
     trainer.set_mini_batch_size(128);
-    trainer.be_verbose();
+    trainer.be_verbose(); 
     // Since DNN training can take a long time, we can ask the trainer to save its state to
     // a file named "mnist_sync" every 20 seconds.  This way, if we kill this program and
     // start it again it will begin where it left off rather than restarting the training
