@@ -662,7 +662,7 @@ namespace dlib
             // periodically copy these tensors to all the other devices to make sure the
             // different GPUs don't go out of sync.
             std::vector<tensor*> reference_params;
-            visit_layer_parameters(devices[0]->net, [&](size_t, tensor& t) { reference_params.push_back(&t); });
+            visit_layer_parameters(devices[0]->net, [&](size_t, tensor& t) { reference_params.push_back(&t); std::cout << &t << std::endl;});
 
             // We make separate thread pools with just one thread in them because we want
             // to make sure each device is always executed on the same thread.  We care
@@ -1147,6 +1147,7 @@ namespace dlib
 
             // chop the data into devs blocks, each of about block_size elements.
             size_t block_size = (num+devs-1)/devs;
+
 
             const auto prev_dev = dlib::cuda::get_device();
             for (size_t i = 0; i < devs; ++i)
