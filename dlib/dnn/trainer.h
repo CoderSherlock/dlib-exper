@@ -346,10 +346,12 @@ namespace dlib
                 }
                 std::cout << "Time for Epoch "<< rpad(cast_to_string(epoch_iteration+1),epoch_string_pad) << " is " 
                                 << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+            
             }
             wait_for_thread_to_pause();
             // if we modified the network at all then be sure to sync the final result.
             sync_to_disk(true);
+
         }
 
         void train (
@@ -403,6 +405,8 @@ namespace dlib
                               << "average loss: " << rpad(cast_to_string(get_average_loss()),string_pad) << "  ";
                     print_progress();
                 }
+
+
             }
             wait_for_thread_to_pause();
             // if we modified the network at all then be sure to sync the final result.
@@ -662,7 +666,7 @@ namespace dlib
             // periodically copy these tensors to all the other devices to make sure the
             // different GPUs don't go out of sync.
             std::vector<tensor*> reference_params;
-            visit_layer_parameters(devices[0]->net, [&](size_t, tensor& t) { reference_params.push_back(&t); std::cout << &t << std::endl;});
+            visit_layer_parameters(devices[0]->net, [&](size_t, tensor& t) { reference_params.push_back(&t); std::cout << &t << std::endl;});  // HPZ: print out parameters' pointer
 
             // We make separate thread pools with just one thread in them because we want
             // to make sure each device is always executed on the same thread.  We care
@@ -728,6 +732,27 @@ namespace dlib
 
                 // Now, if there is more than one active device we need to synchronize the
                 // gradient updates between devices.  So we do that now.
+
+
+                long long size = 0;
+                long long amount = 0;
+                for (size_t i = 0; i < devices.size(); ++i)
+                {
+                    visit_layer_parameter_gradients(devices[i]->net, [&](size_t j, tensor& t){
+                        amount += t.size();
+                        for(auto s = t.begin(); s != t.end(); s ++){
+                            // std::cout << *s << "  ";
+                            size += sizeof(*s);
+                        }
+                        // std::cout << std::endl;
+                    });
+                }
+                std::cout << "amount paramater: " << amount << std::endl;
+                std::cout << "size of paramater: " << size << std::endl;
+
+
+
+                
                 if (devices.size() > 1)
                 {
                     // if this is the first iteration then we need to setup the averagers.

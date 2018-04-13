@@ -326,6 +326,8 @@ namespace dlib
         tensor& operator= (const tensor& item); 
         tensor(tensor&& item); 
         tensor& operator=(tensor&& item); 
+
+        std::ostream &operator<<(std::ostream &os, tensor const &t);
     };
 
 // ----------------------------------------------------------------------------------------

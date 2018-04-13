@@ -47,6 +47,11 @@ int main(int argc, char** argv) try
     std::vector<unsigned long>         testing_labels;
     load_mnist_dataset(argv[1], training_images, training_labels, testing_images, testing_labels);
 
+    // std::cout << training_images.size() << std::endl;
+    // training_images.erase(training_images.begin(), training_images.begin()+30000);
+    // raining_labels.erase(training_labels.begin(), training_labels.begin()+30000);
+    // std::cout << training_images.size() << std::endl;
+
 
     // Now let's define the LeNet.  Broadly speaking, there are 3 parts to a network
     // definition.  The loss layer, a bunch of computational layers, and then an input
@@ -124,6 +129,9 @@ int main(int argc, char** argv) try
     // Now let's run the training images through the network.  This statement runs all the
     // images through it and asks the loss layer to convert the network's raw output into
     // labels.  In our case, these labels are the numbers between 0 and 9.
+
+
+
     std::vector<unsigned long> predicted_labels = net(training_images);
     int num_right = 0;
     int num_wrong = 0;
