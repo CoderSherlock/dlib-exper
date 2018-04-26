@@ -24,7 +24,13 @@
 
 using namespace std;
 using namespace dlib;
- 
+
+struct device{
+	int number;
+	string ip;
+	int port=2233;
+};
+
 int main(int argc, char** argv) try
 {
     // This example is going to run on the MNIST dataset.  
@@ -36,19 +42,11 @@ int main(int argc, char** argv) try
 
 	int ismaster = 0;
 	char* dataset;
-	string myip = "";
-	int myport = 2233;	
-	
+	device me;
+	device master;
 	int slave_number;
 
-	struct device{
-		int number;
-		string ip;
-		int port=2233;
-	};
 	std::vector<device> slave_list;
-	device master;
-
 
 	// Get the mode, ip and port
 	try{
@@ -60,8 +58,10 @@ int main(int argc, char** argv) try
 			throw "Mode is incorrect";
 		}
 
-		myip = argv[2];
-		myport = atoi(argv[3]);
+		me.ip = argv[2];
+		me.port = atoi(argv[3]);
+		me.number = atoi(argv[4]);
+		
 	}catch(exception &e){
 		std::cerr << e.what() << std::endl;
 		return 1;
@@ -69,7 +69,7 @@ int main(int argc, char** argv) try
 
 	// Print self information
 	std::cout << "Local Machine info:\n";
-	std::cout << (ismaster?"master":"slave") << " " << myip << ":" << myport << std::endl;
+	std::cout << (ismaster?"master":"slave") << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
 
 	for(int i =1; i < argc; i++){
 		if(strcmp(argv[i], "-d")==0){
@@ -90,6 +90,9 @@ int main(int argc, char** argv) try
 				}
 			}
 		}else{
+			if(strcmp(argv[i], "-s")==0){
+				slave_number = atoi(argv[i+1]);
+			}
 			if(strcmp(argv[i], "-m")==0){
 				master.number = 0;
 				master.ip = argv[i+1];
@@ -127,6 +130,25 @@ int main(int argc, char** argv) try
     std::vector<unsigned long>         local_training_labels;
     std::vector<matrix<unsigned char>> local_testing_images;
     std::vector<unsigned long>         local_testing_labels;
+
+	local_training_images = training_images;
+	local_training_labels = training_labels;
+	local_testing_images = testing_images;
+	local_testing_labels = testing_labels;
+
+	int group_size = local_training_images.size() / (slave_number + 1);
+	local_training_images.erase(local_training_images.begin(), \
+													local_training_images.begin() + me.number * group_size);
+	local_training_images.erase(local_training_images.begin() + group_size, \
+													local_training_images.end());
+	local_training_labels.erase(local_training_labels.begin(), \
+													local_training_labels.begin() + me.number * group_size);
+	local_training_labels.erase(local_training_labels.begin() + group_size, \
+													local_training_labels.end());
+
+	
+	std::cout << local_training_images.size() << std::endl;
+	
 
     // std::cout << training_images.size() << std::endl;
     // training_images.erase(training_images.begin(), training_images.begin()+30000);
@@ -192,7 +214,12 @@ int main(int argc, char** argv) try
     // a factor of 10 and continues running until the loss stops decreasing again.  It will
     // keep doing this until the learning rate has dropped below the min learning rate
     // defined above or the maximum number of epochs as been executed (defaulted to 10000). 
-    trainer.train_one_step(training_images, training_labels);
+    while(1){
+    	trainer.train_one_step(training_images, training_labels);
+		// wait_for_all_blocks();
+
+		// device[i]->update_paramaters();
+    }
 	// trainer.train(training_images, training_labels);
 	std::cout << trainer << std::endl;
 
