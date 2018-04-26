@@ -1,6 +1,0 @@
-/home/pengzhan/Programs/clion-2018.1.2/bin/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/pengzhan/Github/dlib
--- Using CMake version: 3.10.3
--- C++11 activated.
--- Configuring done
--- Generating done
--- Build files have been written to: /home/pengzhan/Github/dlib/cmake-build-debug
