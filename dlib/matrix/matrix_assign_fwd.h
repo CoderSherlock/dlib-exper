@@ -316,7 +316,7 @@ namespace dlib
         // up so we can overload matrix_assign_big() based on various matrix expression
         // types.
         matrix_assign_big(dest,src.ref());
-    }
+    }// HPZ: Trigger here
 
 // ----------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------

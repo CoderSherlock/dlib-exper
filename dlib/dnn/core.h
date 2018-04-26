@@ -787,7 +787,7 @@ namespace dlib
             return (*this)(&x, &x+1);
         }
 
-        const tensor& forward(const tensor& x)
+        const tensor& forward(const tensor& x)			// HPZ: Forward computation
         {
             subnetwork->forward(x);
             const dimpl::subnet_wrapper<subnet_type> wsub(*subnetwork);
@@ -2311,7 +2311,7 @@ namespace dlib
             return results;
         }
 
-        template <typename iterable_type>
+        template <typename iterable_type>				// HPZ: Network template entry
         std::vector<output_label_type> operator() (
             const iterable_type& data,
             size_t batch_size = 128

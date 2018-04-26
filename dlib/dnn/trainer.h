@@ -216,7 +216,9 @@ namespace dlib
 
             print_periodic_verbose_status();
             sync_to_disk();
+	    std:: cout << "Add a job to queue" << std::endl;
             send_job(false, dbegin, dend, lbegin);
+	    wait_for_thread_to_pause();
 
             ++train_one_step_calls;
         }
@@ -329,6 +331,7 @@ namespace dlib
                     }
 
                     sync_to_disk();
+		    std::cout << "Add a job to queue" << std::endl;
                     send_job(false, data.begin()+epoch_pos, 
                               data.begin()+std::min(epoch_pos+mini_batch_size,data.size()), 
                               labels.begin()+epoch_pos);
@@ -651,6 +654,13 @@ namespace dlib
         {
             auto&& dev = *devices[device];
             dlib::cuda::set_device(dev.device_id);
+            
+            /*
+            for(auto s: dev.solvers)
+                std::cout << s << std::endl;
+            */
+            // serialize(this, std::cout);
+
             dev.net.update_parameters(make_sstack(dev.solvers), learning_rate);
         }
 
@@ -734,6 +744,7 @@ namespace dlib
                 // gradient updates between devices.  So we do that now.
 
 
+                // HPZ: This part is trying to get all paramaters
                 long long size = 0;
                 long long amount = 0;
                 for (size_t i = 0; i < devices.size(); ++i)

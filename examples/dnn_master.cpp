@@ -28,14 +28,89 @@ using namespace dlib;
 int main(int argc, char** argv) try
 {
     // This example is going to run on the MNIST dataset.  
-    if (argc != 2)
+    if (argc < 2)
     {
-        cout << "This example needs the MNIST dataset to run!" << endl;
-        cout << "You can get MNIST from http://yann.lecun.com/exdb/mnist/" << endl;
-        cout << "Download the 4 files that comprise the dataset, decompress them, and" << endl;
-        cout << "put them in a folder.  Then give that folder as input to this program." << endl;
+        cout << "Master program has invalid argumnets" << endl;
         return 1;
     }
+
+	int ismaster = 0;
+	char* dataset;
+	string myip = "";
+	int myport = 2233;	
+	
+	int slave_number;
+
+	struct device{
+		int number;
+		string ip;
+		int port=2233;
+	};
+	std::vector<device> slave_list;
+	device master;
+
+
+	// Get the mode, ip and port
+	try{
+		if(strcmp(argv[1], "master") == 0 ){
+			ismaster = 1;
+		}else if(strcmp(argv[1], "slave") == 0 ){
+			ismaster = 0;
+		}else{
+			throw "Mode is incorrect";
+		}
+
+		myip = argv[2];
+		myport = atoi(argv[3]);
+	}catch(exception &e){
+		std::cerr << e.what() << std::endl;
+		return 1;
+	}
+
+	// Print self information
+	std::cout << "Local Machine info:\n";
+	std::cout << (ismaster?"master":"slave") << " " << myip << ":" << myport << std::endl;
+
+	for(int i =1; i < argc; i++){
+		if(strcmp(argv[i], "-d")==0){
+			dataset = argv[i+1];
+			std::cout << "Dataset:\t" << dataset << std::endl;
+		}
+
+		// Get slaves ip and port if is master
+		if(ismaster){
+			if(strcmp(argv[i], "-s")==0){
+				slave_number = atoi(argv[i+1]);
+				for(int j=1; j <= slave_number; j++){
+					device temp;
+					temp.number = j;
+					temp.ip = argv[i+j*2];
+					temp.port = atoi(argv[i+j*2+1]);
+					slave_list.push_back(temp);
+				}
+			}
+		}else{
+			if(strcmp(argv[i], "-m")==0){
+				master.number = 0;
+				master.ip = argv[i+1];
+				master.port = atoi(argv[i+2]);
+			}
+		}
+	}
+
+
+	// Print out other machines information
+	if(ismaster){
+		std::cout << "Slaves:\t[" << slave_number << "]" << std::endl;
+		for(int i=0; i< slave_list.size(); i++){
+			std::cout << slave_list[i].number << " " << slave_list[i].ip << ":" << slave_list[i].port << std::endl;
+		}
+	}else{
+		std::cout << master.number << " " << master.ip << ":" << master.port << std::endl;
+	}
+
+	
+	
 
 
     // MNIST is broken into two parts, a training set of 60000 images and a test set of
@@ -45,7 +120,13 @@ int main(int argc, char** argv) try
     std::vector<unsigned long>         training_labels;
     std::vector<matrix<unsigned char>> testing_images;
     std::vector<unsigned long>         testing_labels;
-    load_mnist_dataset(argv[1], training_images, training_labels, testing_images, testing_labels);
+    load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
+
+	
+    std::vector<matrix<unsigned char>> local_training_images;
+    std::vector<unsigned long>         local_training_labels;
+    std::vector<matrix<unsigned char>> local_testing_images;
+    std::vector<unsigned long>         local_testing_labels;
 
     // std::cout << training_images.size() << std::endl;
     // training_images.erase(training_images.begin(), training_images.begin()+30000);

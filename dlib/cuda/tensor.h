@@ -159,7 +159,7 @@ namespace dlib
             static_assert((is_same_type<float, typename EXP::type>::value == true),
                 "To assign a matrix to a tensor the matrix must contain float values");
             set_ptrm(host()+idx*item.size(), item.nr(), item.nc()) = item;
-        }
+        } // HPZ: Called Operator=
 
 
         template <typename EXP>

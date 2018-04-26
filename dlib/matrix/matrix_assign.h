@@ -563,7 +563,7 @@ namespace dlib
             bool transpose
         )
         {
-            matrix_assign_blas_helper<dest_exp,src_exp>::assign(dest,src,alpha,add_to, transpose);
+            matrix_assign_blas_helper<dest_exp,src_exp>::assign(dest,src,alpha,add_to, transpose);  //HPZ: Trigger here
         }
             
     // ------------------------------------------------------------------------------------
@@ -745,7 +745,7 @@ namespace dlib
             {
                 matrix_assign_blas_proxy(dest,src,1,false, false);
             }
-        }
+        }	// HPZ: Trigger Here
             
     // ------------------------------------------------------------------------------------
 
@@ -928,7 +928,7 @@ namespace dlib
     )
     {
         blas_bindings::matrix_assign_blas(dest,src);
-    }
+    } // HPZ: Trigger here
 
 // ----------------------------------------------------------------------------------------
 

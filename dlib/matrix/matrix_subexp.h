@@ -622,7 +622,7 @@ namespace dlib
             }
 
             return *this;
-        }
+        }// HPZ: Suspect init caller
 
         template <typename EXP>
         assignable_ptr_matrix& operator+= (

@@ -659,6 +659,7 @@ namespace dlib
         while ( (dequeue_waiters < num || pipe_size != 0) && enabled && dequeue_enabled)
             unblock_sig.wait();
 
+	std::cout << "Jump out from wait" << std::endl;
         // let the destructor know we are ending if it is blocked waiting
         if (enabled == false)
             unblock_sig.broadcast();

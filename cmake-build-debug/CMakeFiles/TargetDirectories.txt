@@ -1,0 +1,13 @@
+/home/pengzhan/Github/dlib/cmake-build-debug/CMakeFiles/install/strip.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/CMakeFiles/install/local.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/CMakeFiles/list_install_components.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/CMakeFiles/install.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/dlib/CMakeFiles/install/strip.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/dlib/CMakeFiles/install/local.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/dlib/CMakeFiles/rebuild_cache.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/dlib/CMakeFiles/edit_cache.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/dlib/CMakeFiles/install.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/dlib/CMakeFiles/dlib.dir
+/home/pengzhan/Github/dlib/cmake-build-debug/dlib/CMakeFiles/list_install_components.dir
