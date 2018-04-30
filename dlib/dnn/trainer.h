@@ -192,6 +192,27 @@ namespace dlib
             return devices[0]->solvers; 
         }
 
+	void train_one_epoch(
+		const std::vector<input_type>& data,
+		const std::vector<training_label_type>& labels
+	)
+	{
+		DLIB_CASSERT(data.size() == labels.size());
+		epoch_pos = 0;
+		for (; epoch_pos < data.size() ; epoch_pos += mini_batch_size)
+                {
+                    sync_to_disk();
+		    std::cout << "Add a job to queue" << std::endl;
+                    send_job(false, data.begin()+epoch_pos, 
+                              data.begin()+std::min(epoch_pos+mini_batch_size,data.size()), 
+                              labels.begin()+epoch_pos);
+		
+		}
+		print_progress();
+		wait_for_thread_to_pause();
+		sync_to_disk(true);
+	}
+
         void train_one_step (
             const std::vector<input_type>& data,
             const std::vector<training_label_type>& labels 
@@ -686,7 +707,8 @@ namespace dlib
             // reduce the number of contexts we allocate from num_devices*num_devices to
             // just num_devices. 
             std::vector<std::shared_ptr<thread_pool>> tp;
-            for (size_t i = 0; i < devices.size(); ++i)
+            //for (size_t i = 0; i < devices.size(); ++i)
+            for(size_t i = 0; i < 4; ++i)
                 tp.push_back(std::make_shared<thread_pool>(1));
 
 
@@ -732,7 +754,8 @@ namespace dlib
                 // Call compute_parameter_gradients() and update_parameters() but pick the
                 // right version for unsupervised or supervised training based on the type
                 // of training_label_type.
-                for (size_t i = 0; i < devices.size(); ++i)
+                //for (size_t i = 0; i < devices.size(); ++i)
+                for(size_t i = 0; i < 4; ++i)
                     tp[i]->add_task_by_value([&,i](double& loss){ loss = compute_parameter_gradients(i, next_job, pick_which_run_update); }, losses[i]);
                 // aggregate loss values from all the network computations.
                 double theloss = 0;
@@ -745,6 +768,7 @@ namespace dlib
 
 
                 // HPZ: This part is trying to get all paramaters
+                /*
                 long long size = 0;
                 long long amount = 0;
                 for (size_t i = 0; i < devices.size(); ++i)
@@ -760,7 +784,7 @@ namespace dlib
                 }
                 std::cout << "amount paramater: " << amount << std::endl;
                 std::cout << "size of paramater: " << size << std::endl;
-
+		*/
 
 
                 

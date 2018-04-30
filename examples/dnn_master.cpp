@@ -21,15 +21,40 @@
 #include <dlib/dnn.h>
 #include <iostream>
 #include <dlib/data_io.h>
+#include <chrono>
 
 using namespace std;
 using namespace dlib;
+using std::chrono::system_clock;
+
 
 struct device{
 	int number;
 	string ip;
 	int port=2233;
 };
+
+template <
+        typename net_type
+        >
+double accuracy(net_type net, std::vector<matrix<unsigned char>> training_images, std::vector<unsigned long> training_labels){
+    std::vector<unsigned long> predicted_labels = net(training_images);
+    int num_right = 0;
+    int num_wrong = 0;
+    // And then let's see if it classified them correctly.
+    for (size_t i = 0; i < training_images.size(); ++i)
+    {
+        if (predicted_labels[i] == training_labels[i])
+            ++num_right;
+        else
+            ++num_wrong;
+        
+    }
+    cout << "testing num_right: " << num_right << endl;
+    cout << "testing num_wrong: " << num_wrong << endl;
+    cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
+	return num_right/(double)(num_right+num_wrong);
+}
 
 int main(int argc, char** argv) try
 {
@@ -208,17 +233,28 @@ int main(int argc, char** argv) try
     // from scratch.  This is because, when the program restarts, this call to
     // set_synchronization_file() will automatically reload the settings from mnist_sync if
     // the file exists.
-    trainer.set_synchronization_file("mnist_sync", std::chrono::seconds(20));
+    char sync_filename[30];
+	sprintf(sync_filename, "backup.%d.mm", me.number);
+    trainer.set_synchronization_file(sync_filename, std::chrono::seconds(20));
     // Finally, this line begins training.  By default, it runs SGD with our specified
     // learning rate until the loss stops decreasing.  Then it reduces the learning rate by
     // a factor of 10 and continues running until the loss stops decreasing again.  It will
     // keep doing this until the learning rate has dropped below the min learning rate
     // defined above or the maximum number of epochs as been executed (defaulted to 10000). 
-    while(1){
-    	trainer.train_one_step(training_images, training_labels);
-		// wait_for_all_blocks();
+	int epoch = 0;
+	while(1){
+		auto epoch_time = system_clock::now();  // HPZ: Counting
+    	trainer.train_one_epoch(local_training_images, local_training_labels);
 
-		// device[i]->update_paramaters();
+
+		// Wait for all devices send back to their paramaters
+
+		
+		std::cout << "Finish epoch " << epoch++ << std::endl;
+		std::cout << "Time for Epoch is " 
+                                << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+		accuracy(net, local_training_images, local_training_labels);
+		accuracy(net, testing_images, testing_labels);
     }
 	// trainer.train(training_images, training_labels);
 	std::cout << trainer << std::endl;
@@ -242,24 +278,11 @@ int main(int argc, char** argv) try
 
 
 
-    std::vector<unsigned long> predicted_labels = net(training_images);
-    int num_right = 0;
-    int num_wrong = 0;
-    // And then let's see if it classified them correctly.
-    for (size_t i = 0; i < training_images.size(); ++i)
-    {
-        if (predicted_labels[i] == training_labels[i])
-            ++num_right;
-        else
-            ++num_wrong;
-        
-    }
-    cout << "training num_right: " << num_right << endl;
-    cout << "training num_wrong: " << num_wrong << endl;
-    cout << "training accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
+
 
     // Let's also see if the network can correctly classify the testing images.  Since
     // MNIST is an easy dataset, we should see at least 99% accuracy.
+    /*
     predicted_labels = net(testing_images);
     num_right = 0;
     num_wrong = 0;
@@ -274,7 +297,7 @@ int main(int argc, char** argv) try
     cout << "testing num_right: " << num_right << endl;
     cout << "testing num_wrong: " << num_wrong << endl;
     cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
-
+	*/
 
     // Finally, you can also save network parameters to XML files if you want to do
     // something with the network in another tool.  For example, you could use dlib's
