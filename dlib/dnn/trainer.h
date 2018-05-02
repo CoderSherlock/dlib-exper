@@ -62,7 +62,7 @@ namespace dlib
 
     template <
         typename net_type, 
-        typename solver_type = sgd
+        typename solver_type = adam
         >
     class dnn_trainer : private threaded_object
     {
@@ -707,8 +707,8 @@ namespace dlib
             // reduce the number of contexts we allocate from num_devices*num_devices to
             // just num_devices. 
             std::vector<std::shared_ptr<thread_pool>> tp;
-            //for (size_t i = 0; i < devices.size(); ++i)
-            for(size_t i = 0; i < 4; ++i)
+            for (size_t i = 0; i < devices.size(); ++i)
+            // for(size_t i = 0; i < 4; ++i)
                 tp.push_back(std::make_shared<thread_pool>(1));
 
 
@@ -754,8 +754,8 @@ namespace dlib
                 // Call compute_parameter_gradients() and update_parameters() but pick the
                 // right version for unsupervised or supervised training based on the type
                 // of training_label_type.
-                //for (size_t i = 0; i < devices.size(); ++i)
-                for(size_t i = 0; i < 4; ++i)
+                for (size_t i = 0; i < devices.size(); ++i)
+                // for(size_t i = 0; i < 4; ++i)
                     tp[i]->add_task_by_value([&,i](double& loss){ loss = compute_parameter_gradients(i, next_job, pick_which_run_update); }, losses[i]);
                 // aggregate loss values from all the network computations.
                 double theloss = 0;
@@ -768,7 +768,7 @@ namespace dlib
 
 
                 // HPZ: This part is trying to get all paramaters
-                /*
+                
                 long long size = 0;
                 long long amount = 0;
                 for (size_t i = 0; i < devices.size(); ++i)
@@ -779,12 +779,13 @@ namespace dlib
                             // std::cout << *s << "  ";
                             size += sizeof(*s);
                         }
+			std::cout << t.begin() << std::endl;
                         // std::cout << std::endl;
                     });
                 }
-                std::cout << "amount paramater: " << amount << std::endl;
-                std::cout << "size of paramater: " << size << std::endl;
-		*/
+                // std::cout << "amount paramater: " << amount << std::endl;
+                // std::cout << "size of paramater: " << size << std::endl;
+		
 
 
                 
@@ -832,7 +833,7 @@ namespace dlib
 
                 // Now apply all the updates to each device.
                 for (size_t i = 0; i < devices.size(); ++i)
-                    tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
+                    tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });		// HPZ: Update parameters on all devices(sync)
                 // and wait for the updates to all happen.
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->wait_for_all_tasks();

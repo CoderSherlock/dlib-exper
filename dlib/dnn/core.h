@@ -45,7 +45,7 @@ namespace dlib
         double get_learning_rate_multiplier ( const T& , general_) { return 1; }
     }
     template <typename T>
-    double get_learning_rate_multiplier(const T& obj) { return impl::get_learning_rate_multiplier(obj, special_()); }
+    double get_learning_rate_multiplier(const T& obj) { return impl::get_learning_rate_multiplier(obj, special_()); }		// HPZ: double check with this, called by update_parameters
 
 // ----------------------------------------------------------------------------------------
 
@@ -470,8 +470,8 @@ namespace dlib
         size_t mysize;
     };
 
-    template <typename T>
-    sstack<T> make_sstack(std::vector<T>& item)
+    template <typename T>									// HPZ: Make sstack
+    sstack<T> make_sstack(std::vector<T>& item)					// Item => Vector<Tensor>
     {
         return sstack<T>(item.data(), item.size());
     }
@@ -867,7 +867,7 @@ namespace dlib
         }
 
         template <typename solver_type>
-        void update_parameters(sstack<solver_type> solvers, double learning_rate)
+        void update_parameters(sstack<solver_type> solvers, double learning_rate)						// HPZ: To update parameters
         {
             DLIB_CASSERT(solvers.size()>=num_computational_layers);
             // Don't try to adjust the parameters if this layer doesn't have any or the
