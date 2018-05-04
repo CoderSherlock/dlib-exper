@@ -250,7 +250,7 @@ namespace dlib
             return s;
         }
 
-        template <unsigned long N>
+        template <unsigned long N>				// HPZ: 1,2,3 call
         const tensor& operator() (
             const float learning_rate,
             const fc_<N,FC_HAS_BIAS>& l,
@@ -270,7 +270,7 @@ namespace dlib
             int _padding_y,
             int _padding_x
             >
-        const tensor& operator() (
+        const tensor& operator() (				// HPZ: 4 call
             const float learning_rate,
             const con_<_num_filters,_nr,_nc,_stride_y,_stride_x,_padding_y,_padding_x>& l,
             const tensor& params_grad
