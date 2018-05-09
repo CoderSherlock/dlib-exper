@@ -253,6 +253,7 @@ namespace dlib
             return tasks[idx].task_id;
         }
 
+		// HPZ: Update_parameter -> Add_value_by_value -> Add_task_internal(This function)
         template <typename T>
         uint64 add_task (
             T& obj,
@@ -589,6 +590,7 @@ namespace dlib
             return id;
         }
         
+		// HPZ: Update Parameter was called by this task adding function
         template <typename F>
         uint64 add_task_by_value (
             const F& function_object
