@@ -317,7 +317,8 @@ namespace dlib
             ++test_one_step_calls;
         }
 
-        void train (
+        void 
+            train (
             const std::vector<input_type>& data,
             const std::vector<training_label_type>& labels 
         ) 
@@ -755,7 +756,7 @@ namespace dlib
                 // right version for unsupervised or supervised training based on the type
                 // of training_label_type.
                 for (size_t i = 0; i < devices.size(); ++i)
-                // for(size_t i = 0; i < 4; ++i)
+                //for(size_t i = 0; i < 4; ++i)
                     tp[i]->add_task_by_value([&,i](double& loss){ loss = compute_parameter_gradients(i, next_job, pick_which_run_update); }, losses[i]);
                 // aggregate loss values from all the network computations.
                 double theloss = 0;

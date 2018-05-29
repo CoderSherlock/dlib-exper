@@ -111,9 +111,9 @@ int main(int argc, char** argv) try
     // a factor of 10 and continues running until the loss stops decreasing again.  It will
     // keep doing this until the learning rate has dropped below the min learning rate
     // defined above or the maximum number of epochs as been executed (defaulted to 10000). 
-    trainer.train_one_step(training_images, training_labels);
+    trainer.train(training_images, training_labels);
 	// trainer.train(training_images, training_labels);
-	std::cout << trainer << std::endl;
+    std::cout << trainer << std::endl;
 
     // At this point our net object should have learned how to classify MNIST images.  But
     // before we try it out let's save it to disk.  Note that, since the trainer has been

@@ -164,7 +164,7 @@ namespace dlib
 
 // ----------------------------------------------------------------------------------------
 
-    void thread_pool_implementation::
+    void thread_pool_implementation::									// HPZ: Thread implementation from trainer.h:758
     thread (
     )
     {

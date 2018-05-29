@@ -28,12 +28,6 @@ using namespace dlib;
 using std::chrono::system_clock;
 
 
-struct device{
-	int number;
-	string ip;
-	int port=2233;
-};
-
 template <
 typename net_type
 >
@@ -64,6 +58,8 @@ int main(int argc, char** argv) try
 		cout << "Master program has invalid argumnets" << endl;
 		return 1;
 	}
+
+
 
 	int ismaster = 0;
 	char* dataset;
@@ -127,15 +123,6 @@ int main(int argc, char** argv) try
 	}
 
 
-	// Print out other machines information
-	if(ismaster){
-		std::cout << "Slaves:\t[" << slave_number << "]" << std::endl;
-		for(int i=0; i< slave_list.size(); i++){
-			std::cout << slave_list[i].number << " " << slave_list[i].ip << ":" << slave_list[i].port << std::endl;
-		}
-	}else{
-		std::cout << master.number << " " << master.ip << ":" << master.port << std::endl;
-	}
 
 
 
@@ -215,7 +202,8 @@ int main(int argc, char** argv) try
 	// max_pool<2,2,2,2,relu<con<16,5,5,1,1,SUBNET>>> means we apply 16 convolutions with a
 	// 5x5 filter size and 1x1 stride to the output of a subnetwork, then apply ReLU, then
 	// perform max pooling with a 2x2 window and 2x2 stride.  
-
+	
+	
 
 
 	// So with that out of the way, we can make a network instance.
@@ -223,6 +211,7 @@ int main(int argc, char** argv) try
 	// And then train it using the MNIST data.  The code below uses mini-batch stochasticl
 	// gradient descent with an initial learning rate of 0.01 to accomplish this.
 	dnn_trainer<net_type> trainer(net);
+
 	trainer.set_learning_rate(0.01);
 	trainer.set_min_learning_rate(0.00001);
 	trainer.set_mini_batch_size(128);
@@ -241,11 +230,41 @@ int main(int argc, char** argv) try
 	// a factor of 10 and continues running until the loss stops decreasing again.  It will
 	// keep doing this until the learning rate has dropped below the min learning rate
 	// defined above or the maximum number of epochs as been executed (defaulted to 10000). 
+	
+
+	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
+	using trainer_type = dnn_trainer<net_type>;
+	dnn_syncer<trainer_type> syncer(&trainer, 0);
+	syncer.set_this_device(me);
+	if(ismaster){
+		syncer.set_isMaster(1);
+		for(int i=0; i < slave_list.size(); i++){
+			syncer.add_slave(slave_list[i]);
+		}
+
+		syncer.init_slaves();
+
+		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
+		syncer.get_slaves_status();
+	}
+	else{
+		// TODO: Wait for master connect
+		if(!syncer.wait_for_master_init()){
+			std::cerr << "Error happens when master send init message" << std::endl;
+			exit(0);
+		}
+	}
+	
+	// HPZ: Manually check if any problems happened in the init
+	sleep((unsigned int)60);
+
+	// std::cout << syncer << std::endl;
+
 	int epoch = 0;
 	while(1){
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		trainer.train_one_epoch(local_training_images, local_training_labels);
-		serialize(trainer, std::cout);
+		// serialize(trainer, std::cout);
 
 
 		// Wait for all devices send back to their paramaters

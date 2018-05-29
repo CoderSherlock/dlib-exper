@@ -262,7 +262,7 @@ namespace dlib
             should_respawn_ = false;
             m_.unlock();
 
-            thread();
+            thread();						// HPZ: Initialized the job distribution thread
 
             auto_mutex M(m_);
 
