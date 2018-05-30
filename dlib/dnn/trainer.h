@@ -237,7 +237,7 @@ namespace dlib
 
             print_periodic_verbose_status();
             sync_to_disk();
-	    std:: cout << "Add a job to queue" << std::endl;
+			// std:: cout << "Add a job to queue" << std::endl;					
             send_job(false, dbegin, dend, lbegin);
 	    wait_for_thread_to_pause();
 
@@ -780,7 +780,7 @@ namespace dlib
                             // std::cout << *s << "  ";
                             size += sizeof(*s);
                         }
-						std::cout << t.begin() << std::endl;
+						// std::cout << t.begin() << std::endl;
                         // std::cout << std::endl;
                     });
                 }

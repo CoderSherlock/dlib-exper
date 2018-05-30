@@ -111,11 +111,12 @@ namespace dlib{
 				connection* conn = NULL;
 				if(create_connection(conn, 
 									(unsigned short)slaves_list[i].port	, slaves_list[i].ip, 
-									(unsigned short)me.port				, me.ip)
+									(unsigned short)me.port + i			, me.ip)
 						){
 					std::cerr << "Create failed on " << slaves_list[i].ip << ":" << slaves_list[i].port << std::endl;
 					this->slave_status[i] = slaveStatus::NotConn;
-					conn->shutdown();
+					if(conn)
+						conn->shutdown();
 					continue;
 				}
 
@@ -185,7 +186,21 @@ namespace dlib{
 			return 0;
 		}
 
+		int dispatch_jobs(int slave_index, int begin, int end){
+			DLIB_CASSERT(end > begin, "Job range is not valid.");
 
+			if (this->slave_status[slave_index] != slaveStatus::Running)
+				return 0;
+
+			return 1;
+		}
+
+
+		int notify_finish(){
+			// TODO
+		
+			return 1;		
+		}
 
 
 
