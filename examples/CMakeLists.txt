@@ -41,6 +41,7 @@ project(examples)
 # into your project.  Note that you don't need to compile or install dlib.  All
 # cmake needs is the dlib source code folder and it will take care of everything.
 add_subdirectory(../dlib dlib_build)
+set(CMAKE_CXX_STANDARD 11)
 
 
 # The next thing we need to do is tell CMake about the code you want to
@@ -97,6 +98,12 @@ macro(add_example name)
    target_link_libraries(${name} dlib::dlib )
 endmacro()
 
+# set(tools /home/pengzhan/NDK/standalon/)
+# set(CMAKE_C_COMPILER ${tools}/bin/arm-linux-androideabi-gcc)
+# set(CMAKE_CXX_COMPILER ${tools}/bin/arm-linux-androideabi-g++)
+set(CMAKE_SYSTEM_NAME Android)
+set(CMAKE_ANDROID_STANDALONE_TOOLCHAIN /home/pengzhan/NDK/standalon)
+
 # if an example requires GUI, call this macro to check DLIB_NO_GUI_SUPPORT to include or exclude
 macro(add_gui_example name)
    if (DLIB_NO_GUI_SUPPORT)
@@ -127,6 +134,7 @@ if (NOT USING_OLD_VISUAL_STUDIO_COMPILER)
    # add_gui_example(dnn_face_recognition_ex)
    add_example(dnn_introduction_ex)
    add_example(dnn_master)
+   add_example(dnn_test)
    # add_example(dnn_slave)
    # add_example(dnn_introduction2_ex)
    # add_example(dnn_inception_ex)

@@ -125,6 +125,7 @@ namespace dlib
                 return "";
 
             std::ostringstream sout;
+			sout << &t << "\t";											// HPZ: Find out ghost variable
             sout << "output size=(num:"<<  t.num_samples() << ", ";
             sout << "k:" << t.k() << ",";
             while (sout.tellp() < 28) sout << " ";
@@ -1000,6 +1001,7 @@ namespace dlib
 
         // temp_tensor doesn't logically contribute to the state of this object.  
         // It is here only to prevent it from being reallocated over and over.
+	public:
         resizable_tensor temp_tensor;
 
     };
@@ -2476,6 +2478,7 @@ namespace dlib
         // These two objects don't logically contribute to the state of this object.  They
         // are here to prevent them from being reallocated over and over.
         output_label_type temp_label;
+	public:
         resizable_tensor temp_tensor;
     };
 

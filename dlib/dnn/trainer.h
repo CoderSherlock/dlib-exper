@@ -71,6 +71,7 @@ namespace dlib
         static_assert(is_loss_layer_type<net_type>::value, 
             "The last layer in a network must be a loss layer.");
 
+		// friend class dnn_syncer<dnn_trainer<net_type>>;
         typedef typename net_type::training_label_type training_label_type;
         typedef typename net_type::input_type input_type;
         const static size_t num_computational_layers = net_type::num_computational_layers;
@@ -202,7 +203,7 @@ namespace dlib
 		for (; epoch_pos < data.size() ; epoch_pos += mini_batch_size)
                 {
                     sync_to_disk();
-		    std::cout << "Add a job to queue" << std::endl;
+			// std::cout << "Add a job to queue" << std::endl;
                     send_job(false, data.begin()+epoch_pos, 
                               data.begin()+std::min(epoch_pos+mini_batch_size,data.size()), 
                               labels.begin()+epoch_pos);
@@ -353,7 +354,7 @@ namespace dlib
                     }
 
                     sync_to_disk();
-					std::cout << "Add a job to queue" << std::endl;
+					// std::cout << "Add a job to queue" << std::endl;
                     send_job(false, data.begin()+epoch_pos, 
                               data.begin()+std::min(epoch_pos+mini_batch_size,data.size()), 
                               labels.begin()+epoch_pos);
@@ -698,7 +699,7 @@ namespace dlib
             // periodically copy these tensors to all the other devices to make sure the
             // different GPUs don't go out of sync.
             std::vector<tensor*> reference_params;
-            visit_layer_parameters(devices[0]->net, [&](size_t, tensor& t) { reference_params.push_back(&t); std::cout << &t << std::endl;});  // HPZ: print out parameters' pointer
+            visit_layer_parameters(devices[0]->net, [&](size_t, tensor& t) { reference_params.push_back(&t); /*std::cout << &t << std::endl;*/});  // HPZ: print out parameters' pointer
 
             // We make separate thread pools with just one thread in them because we want
             // to make sure each device is always executed on the same thread.  We care
@@ -769,26 +770,28 @@ namespace dlib
 
 
                 // HPZ: This part is trying to get all paramaters
+				// std::cout << devices[0]->net << std::endl;
                 
-                long long size = 0;
-                long long amount = 0;
-                for (size_t i = 0; i < devices.size(); ++i)
-                {
-                    visit_layer_parameter_gradients(devices[i]->net, [&](size_t j, tensor& t){
-                        amount += t.size();
-                        for(auto s = t.begin(); s != t.end(); s ++){
-                            // std::cout << *s << "  ";
-                            size += sizeof(*s);
-                        }
-						// std::cout << t.begin() << std::endl;
-                        // std::cout << std::endl;
-                    });
-                }
-                // std::cout << "amount paramater: " << amount << std::endl;
-                // std::cout << "size of paramater: " << size << std::endl;
-		
-
-
+                // long long size = 0;
+                // long long amount = 0;
+                // for (size_t i = 0; i < devices.size(); ++i)
+                // {
+                //     visit_layer_parameter_gradients(devices[i]->net, [&](size_t j, tensor& t){
+				//         std::cout << &t << "\t:";
+				//         std::cout << t.num_samples() << "\t";
+                //         amount += t.size();
+                //         for(auto s = t.begin(); s != t.end(); s ++){
+				//             std::cout << *s << "  ";
+                //             size += sizeof(*s);
+                //         }
+				//         std::cout << t.begin() << std::endl;
+				//         std::cout << std::endl;
+                //     });
+                // }
+				// std::cout << "amount paramater: " << amount << std::endl;
+				// std::cout << "size of paramater: " << size << std::endl;
+				// sleep(1000);
+				
                 
                 if (devices.size() > 1)
                 {
@@ -909,10 +912,12 @@ namespace dlib
             eptr = std::current_exception();
         }
 
+	public:
         void wait_for_thread_to_pause() const
         {
             job_pipe.wait_for_num_blocked_dequeues(1);
         }
+	private:
 
         const static long string_pad = 11;
         const static long epoch_string_pad = 4;
@@ -1292,7 +1297,9 @@ namespace dlib
             }
         }
 
+	public:
         std::vector<std::shared_ptr<device_data>> devices;
+	private:
         dlib::pipe<job_t> job_pipe;
         job_t job;
 
@@ -1304,7 +1311,9 @@ namespace dlib
         size_t mini_batch_size;
         bool verbose;
         net_type& net;
+	public:
         std::atomic<double> learning_rate;
+	private:
         double min_learning_rate;
         std::atomic<unsigned long> iter_without_progress_thresh;
         std::atomic<unsigned long> steps_without_progress;

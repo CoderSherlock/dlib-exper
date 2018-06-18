@@ -52,82 +52,6 @@ double accuracy(net_type net, std::vector<matrix<unsigned char>> training_images
 
 int main(int argc, char** argv) try
 {
-	// This example is going to run on the MNIST dataset.  
-	if (argc < 2)
-	{
-		cout << "Master program has invalid argumnets" << endl;
-		return 1;
-	}
-
-
-
-	int ismaster = 0;
-	char* dataset;
-	device me;
-	device master;
-	int slave_number;
-
-	std::vector<device> slave_list;
-
-	// Get the mode, ip and port
-	try{
-		if(strcmp(argv[1], "master") == 0 ){
-			ismaster = 1;
-		}else if(strcmp(argv[1], "slave") == 0 ){
-			ismaster = 0;
-		}else{
-			throw "Mode is incorrect";
-		}
-
-		me.ip = argv[2];
-		me.port = atoi(argv[3]);
-		me.number = atoi(argv[4]);
-
-	}catch(exception &e){
-		std::cerr << e.what() << std::endl;
-		return 1;
-	}
-
-	// Print self information
-	std::cout << "Local Machine info:\n";
-	std::cout << (ismaster?"master":"slave") << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
-
-	for(int i =1; i < argc; i++){
-		if(strcmp(argv[i], "-d")==0){
-			dataset = argv[i+1];
-			std::cout << "Dataset:\t" << dataset << std::endl;
-		}
-
-		// Get slaves ip and port if is master
-		if(ismaster){
-			if(strcmp(argv[i], "-s")==0){
-				slave_number = atoi(argv[i+1]);
-				for(int j=1; j <= slave_number; j++){
-					device temp;
-					temp.number = j;
-					temp.ip = argv[i+j*2];
-					temp.port = atoi(argv[i+j*2+1]);
-					slave_list.push_back(temp);
-				}
-			}
-		}else{
-			if(strcmp(argv[i], "-s")==0){
-				slave_number = atoi(argv[i+1]);
-			}
-			if(strcmp(argv[i], "-m")==0){
-				master.number = 0;
-				master.ip = argv[i+1];
-				master.port = atoi(argv[i+2]);
-			}
-		}
-	}
-
-
-
-
-
-
-
 	// MNIST is broken into two parts, a training set of 60000 images and a test set of
 	// 10000 images.  Each image is labeled so that we know what hand written digit is
 	// depicted.  These next statements load the dataset into memory.
@@ -135,7 +59,7 @@ int main(int argc, char** argv) try
 	std::vector<unsigned long>         training_labels;
 	std::vector<matrix<unsigned char>> testing_images;
 	std::vector<unsigned long>         testing_labels;
-	load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
+	load_mnist_dataset(argv[1], training_images, training_labels, testing_images, testing_labels);
 
 
 	std::vector<matrix<unsigned char>> local_training_images;
@@ -148,13 +72,13 @@ int main(int argc, char** argv) try
 	local_testing_images = testing_images;
 	local_testing_labels = testing_labels;
 
-	int group_size = local_training_images.size() / (slave_number + 1);
+	int group_size = local_training_images.size() / 1;
 	local_training_images.erase(local_training_images.begin(), \
-			local_training_images.begin() + me.number * group_size);
+			local_training_images.begin() + 0 * group_size);
 	local_training_images.erase(local_training_images.begin() + group_size, \
 			local_training_images.end());
 	local_training_labels.erase(local_training_labels.begin(), \
-			local_training_labels.begin() + me.number * group_size);
+			local_training_labels.begin() + 0 * group_size);
 	local_training_labels.erase(local_training_labels.begin() + group_size, \
 			local_training_labels.end());
 
@@ -202,8 +126,8 @@ int main(int argc, char** argv) try
 	// max_pool<2,2,2,2,relu<con<16,5,5,1,1,SUBNET>>> means we apply 16 convolutions with a
 	// 5x5 filter size and 1x1 stride to the output of a subnetwork, then apply ReLU, then
 	// perform max pooling with a 2x2 window and 2x2 stride.  
-	
-	
+
+
 
 
 	// So with that out of the way, we can make a network instance.
@@ -214,7 +138,7 @@ int main(int argc, char** argv) try
 
 	trainer.set_learning_rate(0.01);
 	trainer.set_min_learning_rate(0.00001);
-	trainer.set_mini_batch_size(128);
+	trainer.set_mini_batch_size(30000);
 	trainer.be_verbose(); 
 	// Since DNN training can take a long time, we can ask the trainer to save its state to
 	// a file named "mnist_sync" every 20 seconds.  This way, if we kill this program and
@@ -223,40 +147,41 @@ int main(int argc, char** argv) try
 	// set_synchronization_file() will automatically reload the settings from mnist_sync if
 	// the file exists.
 	char sync_filename[30];
-	sprintf(sync_filename, "backup.%d.mm", me.number);
+	sprintf(sync_filename, "backup.%d.mm", 1);
 	trainer.set_synchronization_file(sync_filename, std::chrono::seconds(20));
 	// Finally, this line begins training.  By default, it runs SGD with our specified
 	// learning rate until the loss stops decreasing.  Then it reduces the learning rate by
 	// a factor of 10 and continues running until the loss stops decreasing again.  It will
+	// friend class dnn_syncer;
 	// keep doing this until the learning rate has dropped below the min learning rate
 	// defined above or the maximum number of epochs as been executed (defaulted to 10000). 
-	
+
 
 	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	using trainer_type = dnn_trainer<net_type>;
-	dnn_syncer<trainer_type> syncer(&trainer, 0);
-	syncer.set_this_device(me);
-	if(ismaster){
-		syncer.set_isMaster(1);
-		for(int i=0; i < slave_list.size(); i++){
-			syncer.add_slave(slave_list[i]);
-		}
+	// dnn_syncer<trainer_type> syncer(&trainer, 0);
+	// syncer.set_this_device(me);
+	// if(ismaster){
+	//     syncer.set_isMaster(1);
+	//     for(int i=0; i < slave_list.size(); i++){
+	//         syncer.add_slave(slave_list[i]);
+	//     }
+	//
+	//     syncer.init_slaves();
+	//
+	//     std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
+	//     syncer.get_slaves_status();
+	// }
+	// else{
+	//     // TODO: Wait for master connect
+	//     if(!syncer.wait_for_master_init()){
+	//         std::cerr << "Error happens when master send init message" << std::endl;
+	//         exit(0);
+	//     }
+	// }
 
-		syncer.init_slaves();
-
-		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
-		syncer.get_slaves_status();
-	}
-	else{
-		// TODO: Wait for master connect
-		if(!syncer.wait_for_master_init()){
-			std::cerr << "Error happens when master send init message" << std::endl;
-			exit(0);
-		}
-	}
-	
 	// HPZ: Manually check if any problems happened in the init
-	sleep((unsigned int) 0);
+	// sleep((unsigned int) 20);
 
 	// std::cout << syncer << std::endl;
 
@@ -265,8 +190,8 @@ int main(int argc, char** argv) try
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		trainer.train_one_epoch(local_training_images, local_training_labels);
 
-		syncer.sync();
-		
+		// syncer.sync();
+
 		// serialize(trainer, std::cout);
 
 		// Wait for all devices send back to their paramaters
@@ -274,15 +199,16 @@ int main(int argc, char** argv) try
 		std::cout << "Finish epoch " << epoch++ << std::endl;
 		std::cout << "Time for Epoch is " 
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
-
-		std::cout << trainer.learning_rate << std::endl;
 		accuracy(net, local_training_images, local_training_labels);
 		accuracy(net, testing_images, testing_labels);
+		std::cout << trainer << std::endl;
 
 		if (trainer.learning_rate <= 0.00001)
 			break;
 	}
 	// trainer.train(training_images, training_labels);
+	accuracy(net, local_training_images, local_training_labels);
+	accuracy(net, testing_images, testing_labels);
 	std::cout << trainer << std::endl;
 
 	// At this point our net object should have learned how to classify MNIST images.  But
