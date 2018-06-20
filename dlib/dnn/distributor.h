@@ -234,11 +234,9 @@ namespace dlib{
 					// std::cout << trainer->devices[0]->net << std::endl;
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
-#define DEBUG
-#ifdef DEBUG
-					long long size = 0;
-					long long amount = 0;
-#endif
+
+					size_t amount = 0;
+					size_t size = 0;
 
 					// std::cout << make_sstack(trainer->devices[0]->solvers).top().num_samples() << std::endl;
 					// std::cout << &(trainer->devices[0]->net) << std::endl;
@@ -246,29 +244,22 @@ namespace dlib{
 					// std::cout << trainer->devices[0]->net.subnet().subnet().get_parameter_gradient().num_samples() << std::endl;
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){
 							tensors[i] = &t;
-							std::cout << i << std::endl;
-							// memcpy(t, *tensors[i]);
-							std::cout << typeid(tensors[i]).name() << std::endl;
 
-#ifdef DEBUG
 							amount += t.size();
 							std::cout << tensors[i]->begin() << "\t" << tensors[i]->end() << std::endl;
 							for(auto s = t.begin(); s != t.end(); s ++){
-							std::cout << *s << "  ";
+							// std::cout << *s << "  ";
 							size += sizeof(*s);
 							}
-							std::cout << t.begin() << std::endl;
+							// std::cout << t.begin() << std::endl;
 							std::cout << std::endl;
-#endif
 
 							});
-#ifdef DEBUG
 					std::cout << "amount paramater: " << amount << std::endl;
 					std::cout << "size of paramater: " << size << std::endl;
-#endif
 
 					for(size_t i = 0; i < tensors.size(); i++){
-						// std::cout << tensors[i] << " "<< tensors[i]->size() << std::endl;
+						std::cout << tensors[i] << " "<< tensors[i]->size() << std::endl;
 					}
 
 				}

@@ -202,7 +202,7 @@ namespace dlib
 		epoch_pos = 0;
 		for (; epoch_pos < data.size() ; epoch_pos += mini_batch_size)
                 {
-                    sync_to_disk();
+                    // sync_to_disk();
 			// std::cout << "Add a job to queue" << std::endl;
                     send_job(false, data.begin()+epoch_pos, 
                               data.begin()+std::min(epoch_pos+mini_batch_size,data.size()), 
