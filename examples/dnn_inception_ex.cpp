@@ -95,7 +95,51 @@ int main(int argc, char** argv) try
     trainer.be_verbose();
     trainer.set_synchronization_file("inception_sync", std::chrono::seconds(20));
     // Train the network.  This might take a few minutes...
-    trainer.train(training_images, training_labels);
+    // trainer.train(training_images, training_labels);
+	
+	while(1){
+
+		trainer.train_one_epoch(training_images, training_labels);
+
+		
+
+
+		std::vector<unsigned long> predicted_labels = net(training_images);
+		int num_right = 0;
+		int num_wrong = 0;
+		// And then let's see if it classified them correctly.
+		for (size_t i = 0; i < training_images.size(); ++i)
+		{
+			if (predicted_labels[i] == training_labels[i])
+				++num_right;
+			else
+				++num_wrong;
+			
+		}
+		cout << "training num_right: " << num_right << endl;
+		cout << "training num_wrong: " << num_wrong << endl;
+		cout << "training accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
+
+		// Let's also see if the network can correctly classify the testing images.
+		// Since MNIST is an easy dataset, we should see 99% accuracy.
+		predicted_labels = net(testing_images);
+		num_right = 0;
+		num_wrong = 0;
+		for (size_t i = 0; i < testing_images.size(); ++i)
+		{
+			if (predicted_labels[i] == testing_labels[i])
+				++num_right;
+			else
+				++num_wrong;
+			
+		}
+		cout << "testing num_right: " << num_right << endl;
+		cout << "testing num_wrong: " << num_wrong << endl;
+		cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
+
+		if(trainer.learning_rate <= 0.00001)
+			break;
+	}
 
     // At this point our net object should have learned how to classify MNIST images.  But
     // before we try it out let's save it to disk.  Note that, since the trainer has been
@@ -113,38 +157,6 @@ int main(int argc, char** argv) try
     // Now let's run the training images through the network.  This statement runs all the
     // images through it and asks the loss layer to convert the network's raw output into
     // labels.  In our case, these labels are the numbers between 0 and 9.
-    std::vector<unsigned long> predicted_labels = net(training_images);
-    int num_right = 0;
-    int num_wrong = 0;
-    // And then let's see if it classified them correctly.
-    for (size_t i = 0; i < training_images.size(); ++i)
-    {
-        if (predicted_labels[i] == training_labels[i])
-            ++num_right;
-        else
-            ++num_wrong;
-        
-    }
-    cout << "training num_right: " << num_right << endl;
-    cout << "training num_wrong: " << num_wrong << endl;
-    cout << "training accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
-
-    // Let's also see if the network can correctly classify the testing images.
-    // Since MNIST is an easy dataset, we should see 99% accuracy.
-    predicted_labels = net(testing_images);
-    num_right = 0;
-    num_wrong = 0;
-    for (size_t i = 0; i < testing_images.size(); ++i)
-    {
-        if (predicted_labels[i] == testing_labels[i])
-            ++num_right;
-        else
-            ++num_wrong;
-        
-    }
-    cout << "testing num_right: " << num_right << endl;
-    cout << "testing num_wrong: " << num_wrong << endl;
-    cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
 
 }
 catch(std::exception& e)

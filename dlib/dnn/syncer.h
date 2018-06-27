@@ -24,6 +24,7 @@
 #include "../md5.h"
 
 #include "../sockets.h"
+#include <bitset>
 
 namespace dlib{
 
@@ -203,29 +204,31 @@ namespace dlib{
 					return 1;		
 				}
 
-				resizable_tensor recv_tensor(int slave_index){
-					resizable_tensor res;
-					// Retrieve matrixs from all devices, according to the trainer's net type, build appropriate temporary tensors for
-					// average
+				int recv_tensor(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
+					
 
-					/*
-					 *	30:		Tensor length *n*
-					 *	n:		N byte of real value
-					 *	m:		M times
-					 */
-					char mSizeBuf[30];
-					this->slave_conns[slave_index]->read(mSizeBuf, 30);
-					try{
-						size_t length = atoi(mSizeBuf);
-
-					}catch(...){
-						std::cerr << "incorrect with device " << this->slaves_list[slave_index].ip << ":" << this->slaves_list[slave_index].port;
-						std::cerr << "during the syncing procedure"	<< std::endl;
-						this->slave_status[slave_index] = slaveStatus::NotConn;
+					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++){
+						if(cli_tensors[i].size() != 0){
+							char tBuf[30];
+							slave_conns[slave_index]->read(tBuf, 30);
+							size_t temp_length = 0;
+							try{
+								temp_length = atoi(tBuf);
+							}catch(...){
+								std::cerr << "incorrect with converting" << std::endl;
+							}
+							// while(temp_length--){
+							for(auto j = cli_tensors[slave_index][i].begin(); j != cli_tensors[slave_index][i].end(); j++){
+								char tbp[4];
+								slave_conns[slave_index]->read(tbp, 4);
+								float tmg = 0;
+								std::memcpy((char*)&tmg, tbp, 4);
+								*j = tmg;
+							}
+						}
 					}
 
-					// std::cout << tBuf << std::endl;
-					return res;
+					return 1;
 				}
 
 
@@ -235,33 +238,71 @@ namespace dlib{
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
 
-					size_t amount = 0;
-					size_t size = 0;
-
-					// std::cout << make_sstack(trainer->devices[0]->solvers).top().num_samples() << std::endl;
-					// std::cout << &(trainer->devices[0]->net) << std::endl;
-					// std::cout << trainer->devices[0]->net.subnet().subnet().get_output().num_samples() << std::endl;
-					// std::cout << trainer->devices[0]->net.subnet().subnet().get_parameter_gradient().num_samples() << std::endl;
-					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){
-							tensors[i] = &t;
-
-							amount += t.size();
-							std::cout << tensors[i]->begin() << "\t" << tensors[i]->end() << std::endl;
-							for(auto s = t.begin(); s != t.end(); s ++){
-							// std::cout << *s << "  ";
-							size += sizeof(*s);
-							}
-							// std::cout << t.begin() << std::endl;
-							std::cout << std::endl;
-
-							});
-					std::cout << "amount paramater: " << amount << std::endl;
-					std::cout << "size of paramater: " << size << std::endl;
+					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
 					for(size_t i = 0; i < tensors.size(); i++){
 						std::cout << tensors[i] << " "<< tensors[i]->size() << std::endl;
 					}
 
+					for(size_t i = 0; i < tensors.size(); i++){
+						if(tensors[i]->size() != 0){
+							char tBuf[30];
+							snprintf(tBuf, sizeof(tBuf), "%lu", tensors[i]->size());
+							master_conn->write(tBuf, 30);
+
+							for(auto j = tensors[i]->begin(); j != tensors[i]->end(); j++){
+								float tmpf = *j;
+								master_conn->write((char*)&tmpf, 4);
+							}
+						}
+					}
+
+				}
+
+				void recieve_tensor(){
+					std::vector<std::vector<resizable_tensor>> cli_tensors;
+					
+					// Get gradients from current device
+					std::vector<tensor*> tensors;
+					tensors.resize(this->trainer->num_computational_layers);
+					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
+					
+					// Get gradients from all other devices
+					cli_tensors.resize(slave_status.size());
+					for(size_t i = 0; i < cli_tensors.size(); i++){
+						cli_tensors[i].resize(this->trainer->num_computational_layers);
+						for(size_t j = 0; j < cli_tensors[i].size(); j++){
+							cli_tensors[i][j].copy_size(*tensors[j]);
+							std::cout << cli_tensors[i][j].size() << " ";
+						}
+						std::cout << std::endl;
+					}
+
+					// Get gradients if there exists slave machine
+					if(get_running_slaves_num() != 0){
+
+						for(int s_c = 0, s_c_max = slave_status.size(); s_c < s_c_max ; s_c ++){
+							if(slave_status[s_c] == slaveStatus::Running){
+								std::cout << "Reciveing from " << s_c << std::endl;
+								recv_tensor(s_c, cli_tensors);
+
+								for(int j = 0; j < cli_tensors[s_c].size(); j++){
+									std::cout << cli_tensors[s_c][j].size();
+									// for(auto k = cli_tensors[s_c][j].begin(); k != cli_tensors[s_c][j].end(); k ++){
+									//     std::cout << *k << " ";
+									// }
+									std::cout << std::endl;
+								}
+							}
+							
+						}					
+					
+					
+					}
+					
+					
+
+				
 				}
 
 				void sync(){
@@ -271,29 +312,25 @@ namespace dlib{
 					if(ismaster){
 
 						std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
-						std::vector<std::vector<resizable_tensor>> all_tensors(this->get_running_slaves_num());
 
+
+						recieve_tensor();
+						std::vector<std::vector<resizable_tensor>> all_tensors(this->get_running_slaves_num() + 1);
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							all_tensors[i].resize(this->trainer->num_computational_layers);
 						}
 
 
-						for(int i = 0; i < slaves_list.size(); i++){
-							if(this->slave_status[i] != 1)
-								continue;
-
-
-						}
 					}else{
 
 						send_tensor();
 						// Send length of the current matrix
-						char tBuf[30];
-						snprintf(tBuf, sizeof(tBuf), "%d", me.number);
-						master_conn->write(tBuf, 30);
+						// char tBuf[30];
+						// snprintf(tBuf, sizeof(tBuf), "%d", me.number);
+						// master_conn->write(tBuf, 30);
 					}
 					std::cout << "Sync finished" << std::endl;
-					// sleep(10000);
+					sleep(10000);
 
 				}
 
