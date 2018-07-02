@@ -264,6 +264,8 @@ int main(int argc, char** argv) try
 	while(1){
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		trainer.train_one_epoch(local_training_images, local_training_labels);
+		accuracy(net, local_training_images, local_training_labels);
+		accuracy(net, testing_images, testing_labels);
 
 		syncer.sync();
 		

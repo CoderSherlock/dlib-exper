@@ -204,32 +204,6 @@ namespace dlib{
 					return 1;		
 				}
 
-				int recv_tensor(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
-					
-
-					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++){
-						if(cli_tensors[i].size() != 0){
-							char tBuf[30];
-							slave_conns[slave_index]->read(tBuf, 30);
-							size_t temp_length = 0;
-							try{
-								temp_length = atoi(tBuf);
-							}catch(...){
-								std::cerr << "incorrect with converting" << std::endl;
-							}
-							// while(temp_length--){
-							for(auto j = cli_tensors[slave_index][i].begin(); j != cli_tensors[slave_index][i].end(); j++){
-								char tbp[4];
-								slave_conns[slave_index]->read(tbp, 4);
-								float tmg = 0;
-								std::memcpy((char*)&tmg, tbp, 4);
-								*j = tmg;
-							}
-						}
-					}
-
-					return 1;
-				}
 
 
 				void send_tensor(){
@@ -259,23 +233,61 @@ namespace dlib{
 
 				}
 
-				void recieve_tensor(){
-					std::vector<std::vector<resizable_tensor>> cli_tensors;
-					
-					// Get gradients from current device
+				int recv_tensor(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
+
+
+					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++){
+						if(cli_tensors[i].size() != 0){
+							char tBuf[30];
+							slave_conns[slave_index]->read(tBuf, 30);
+							size_t temp_length = 0;
+							try{
+								temp_length = atoi(tBuf);
+							}catch(...){
+								std::cerr << "incorrect with converting" << std::endl;
+							}
+							for(auto j = cli_tensors[slave_index][i].begin(); j != cli_tensors[slave_index][i].end(); j++){
+								char tbp[4];
+								slave_conns[slave_index]->read(tbp, 4);
+								float tmg = 0;
+								std::memcpy((char*)&tmg, tbp, 4);
+								*j = tmg;
+							}
+						}
+					}
+
+					return 1;
+				}
+				void recieve_tensor(std::vector<std::vector<resizable_tensor>> &all_tensors){
+
+					// Get the pointer of gradients from current device
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
-					
-					// Get gradients from all other devices
-					cli_tensors.resize(slave_status.size());
-					for(size_t i = 0; i < cli_tensors.size(); i++){
-						cli_tensors[i].resize(this->trainer->num_computational_layers);
-						for(size_t j = 0; j < cli_tensors[i].size(); j++){
-							cli_tensors[i][j].copy_size(*tensors[j]);
-							std::cout << cli_tensors[i][j].size() << " ";
+
+					// Initialize temporary gradients contrainer from all other devices
+					all_tensors.resize(slave_status.size() + 1);
+					for(size_t i = 0; i < all_tensors.size(); i++){
+						all_tensors[i].resize(this->trainer->num_computational_layers);
+						for(size_t j = 0; j < all_tensors[i].size(); j++){
+							
+							if(i != (all_tensors.size()-1))
+							{
+								// Set size of tensors to slaves
+								if(slave_status[i] == slaveStatus::Running)
+									all_tensors[i][j].copy_size(*tensors[j]);
+							}
+							else
+							{
+								// Set master
+								all_tensors[i][j].copy_size(*tensors[j]);
+							}
 						}
-						std::cout << std::endl;
+					}
+
+					// Fill the container with currect device value
+					for(size_t i = 0; i < tensors.size(); i ++){
+						all_tensors[all_tensors.size() - 1][i] = *tensors[i];
 					}
 
 					// Get gradients if there exists slave machine
@@ -284,25 +296,61 @@ namespace dlib{
 						for(int s_c = 0, s_c_max = slave_status.size(); s_c < s_c_max ; s_c ++){
 							if(slave_status[s_c] == slaveStatus::Running){
 								std::cout << "Reciveing from " << s_c << std::endl;
-								recv_tensor(s_c, cli_tensors);
+								recv_tensor(s_c, all_tensors);
 
-								for(int j = 0; j < cli_tensors[s_c].size(); j++){
-									std::cout << cli_tensors[s_c][j].size();
-									// for(auto k = cli_tensors[s_c][j].begin(); k != cli_tensors[s_c][j].end(); k ++){
-									//     std::cout << *k << " ";
-									// }
-									std::cout << std::endl;
-								}
 							}
-							
-						}					
-					
-					
-					}
-					
-					
 
-				
+						}					
+
+
+					}
+
+
+
+
+				}
+
+				void average(std::vector<std::vector<resizable_tensor>> &all_tensors){
+					std::vector<std::vector<tensor*>> accessible_groups;
+					float scale = 1.0 / all_tensors.size();
+					for(size_t i = 0; i < this->trainer->num_computational_layers; i++)
+					{
+						std::vector<tensor*> group;
+						for(size_t j = 0; j < all_tensors.size(); j++)
+						{
+							if(all_tensors[j][i].size() != 0)
+							{
+								group.push_back(&all_tensors[j][i]);
+								std::cout << &all_tensors[j][i] << std::endl;
+							}
+						}
+
+						if(group.size() == 0)
+							continue;
+
+						if (group.size() == 1)
+							tt::affine_transform(*group[0], *group[0], scale);
+						else
+							tt::affine_transform(*group[0], *group[0], *group[1], scale, scale);
+
+						for (size_t i = 2; i < group.size(); ++i)
+							tt::affine_transform(*group[0], *group[0], *group[i], 1, scale);
+					}
+				}
+
+				void update(std::vector<tensor*>& updated){
+					std::vector<tensor*> old_tensors;
+					old_tensors.resize(this->trainer->num_computational_layers);
+
+					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){old_tensors[i] = &t;});
+
+					for(size_t i = 0; i < old_tensors.size(); i++){
+						if(old_tensors[i]->size() != 0){
+							for(auto j = old_tensors[i]->begin(), k = updated[i]->begin(); j != old_tensors[i]->end(); j++, k++){
+								*j = *k;
+							}
+						}
+					}
 				}
 
 				void sync(){
@@ -314,13 +362,42 @@ namespace dlib{
 						std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
 
 
-						recieve_tensor();
-						std::vector<std::vector<resizable_tensor>> all_tensors(this->get_running_slaves_num() + 1);
+						std::vector<std::vector<resizable_tensor>> all_tensors;
+						recieve_tensor(all_tensors);
 						for(size_t i = 0; i < all_tensors.size(); i++){
-							all_tensors[i].resize(this->trainer->num_computational_layers);
+							for(size_t j = 0; j < all_tensors[i].size(); j++){
+								std::cout <<  "[" <<all_tensors[i][j].size() << "]";
+								for(auto k = all_tensors[i][j].begin(); k != all_tensors[i][j].end(); k ++){
+									if(k == all_tensors[i][j].begin() + 10)
+										break;
+									// std::cout << "(" << k << ")";
+									std::cout << *k << " ";
+								}
+								std::cout << std::endl;
+							}
 						}
-
-
+						// sleep(10000);
+						average(all_tensors);
+						std::vector<tensor*> temp(this->trainer->num_computational_layers);
+						for(size_t i = 0; i < temp.size(); i++)
+						{
+							// TODO : Deal with 0
+							temp[i] = &all_tensors[0][i];
+						}
+						update(temp);
+						std::cout << "After" << std::endl;
+						for(size_t i = 0; i < all_tensors.size(); i++){
+							for(size_t j = 0; j < all_tensors[i].size(); j++){
+								std::cout <<  "[" <<all_tensors[i][j].size() << "]";
+								for(auto k = all_tensors[i][j].begin(); k != all_tensors[i][j].end(); k ++){
+									if(k == all_tensors[i][j].begin() + 10)
+										break;
+									// std::cout << "(" << k << ")";
+									std::cout << *k << " ";
+								}
+								std::cout << std::endl;
+							}
+						}
 					}else{
 
 						send_tensor();
