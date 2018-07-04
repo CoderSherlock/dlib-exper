@@ -84,7 +84,7 @@ namespace dlib
         dnn_trainer(const dnn_trainer&) = delete;
         dnn_trainer& operator=(const dnn_trainer&) = delete;
 
-        explicit dnn_trainer(net_type& net_) : job_pipe(0), net(net_)
+        explicit dnn_trainer(net_type& net_) : job_pipe(0), net(net_), sync_sign(sync_m), done_sign(done_m)
         {
             solver_type default_solver;
             devices.push_back(std::make_shared<device_data>(dlib::cuda::get_device(), net, default_solver));
@@ -193,25 +193,45 @@ namespace dlib
             return devices[0]->solvers; 
         }
 
-	void train_one_epoch(
-		const std::vector<input_type>& data,
-		const std::vector<training_label_type>& labels
-	)
-	{
-		DLIB_CASSERT(data.size() == labels.size());
-		epoch_pos = 0;
-		for (; epoch_pos < data.size() ; epoch_pos += mini_batch_size)
-        {
-			// std::cout << "Add a job to queue" << std::endl;
+		void train_one_epoch(
+			const std::vector<input_type>& data,
+			const std::vector<training_label_type>& labels
+		)
+		{
+			DLIB_CASSERT(data.size() == labels.size());
+			epoch_pos = 0;
+			for (; epoch_pos < data.size() ; epoch_pos += mini_batch_size)
+			{
+				// std::cout << "Add a job to queue" << std::endl;
+				send_job(false, data.begin()+epoch_pos, 
+							  data.begin()+std::min(epoch_pos+mini_batch_size,data.size()), 
+							  labels.begin()+epoch_pos);
+			
+			}
+			print_progress();
+			wait_for_thread_to_pause();
+			// sync_to_disk(true);
+		}
+
+		void train_one_batch(
+			const std::vector<input_type>& data,
+			const std::vector<training_label_type>& labels
+		)
+		{
+			DLIB_CASSERT(data.size() == labels.size());
 			send_job(false, data.begin()+epoch_pos, 
 						  data.begin()+std::min(epoch_pos+mini_batch_size,data.size()), 
 						  labels.begin()+epoch_pos);
-		
+			
+			epoch_pos += mini_batch_size;
+			if(epoch_pos > data.size())
+			{
+				epoch_pos = 0;
+			}
+			print_progress();
+			// wait_for_thread_to_pause();
+			// sync_to_disk(true);
 		}
-		print_progress();
-		wait_for_thread_to_pause();
-		// sync_to_disk(true);
-	}
 
         void train_one_step (
             const std::vector<input_type>& data,
@@ -677,12 +697,6 @@ namespace dlib
             auto&& dev = *devices[device];
             dlib::cuda::set_device(dev.device_id);
             
-            /*
-            for(auto s: dev.solvers)
-                std::cout << s << std::endl;
-            */
-            // serialize(this, std::cout);
-
             dev.net.update_parameters(make_sstack(dev.solvers), learning_rate);
         }
 
@@ -752,12 +766,13 @@ namespace dlib
 
                 updated_net_since_last_sync = true;
                 ++main_iteration_counter;
+				
                 // Call compute_parameter_gradients() and update_parameters() but pick the
                 // right version for unsupervised or supervised training based on the type
                 // of training_label_type.
                 for (size_t i = 0; i < devices.size(); ++i)
-                //for(size_t i = 0; i < 4; ++i)
                     tp[i]->add_task_by_value([&,i](double& loss){ loss = compute_parameter_gradients(i, next_job, pick_which_run_update); }, losses[i]);
+				
                 // aggregate loss values from all the network computations.
                 double theloss = 0;
                 for (auto&& loss : losses)
@@ -835,6 +850,10 @@ namespace dlib
 
 
                 // Now apply all the updates to each device.
+                for (size_t i = 0; i < devices.size(); ++i)
+                    tp[i]->wait_for_all_tasks();
+				done_sign.broadcast();
+				sync_sign.wait();
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
                 // and wait for the updates to all happen.
@@ -916,6 +935,11 @@ namespace dlib
         {
             job_pipe.wait_for_num_blocked_dequeues(1);
         }
+
+		const mutex sync_m;
+		const mutex done_m;
+		const signaler sync_sign;
+		const signaler done_sign;
 	private:
 
         const static long string_pad = 11;

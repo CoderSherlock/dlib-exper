@@ -213,10 +213,22 @@ namespace dlib{
 					tensors.resize(this->trainer->num_computational_layers);
 
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
+					// visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
 					for(size_t i = 0; i < tensors.size(); i++){
 						std::cout << tensors[i] << " "<< tensors[i]->size() << std::endl;
 					}
+
+					// for(size_t i = 0; i < tensors.size(); i++){
+					//     std::cout <<  "[" <<tensors[i]->size() << "]";
+					//     for(auto k = tensors[i]->begin(); k != tensors[i]->end(); k ++){
+					//         if(k == tensors[i]->begin() + 10)
+					//             break;
+					//         // std::cout << "(" << k << ")";
+					//         std::cout << *k << " ";
+					//     }
+					//     std::cout << std::endl;
+					// }
 
 					for(size_t i = 0; i < tensors.size(); i++){
 						if(tensors[i]->size() != 0){
@@ -227,7 +239,9 @@ namespace dlib{
 							for(auto j = tensors[i]->begin(); j != tensors[i]->end(); j++){
 								float tmpf = *j;
 								master_conn->write((char*)&tmpf, 4);
+								std::cout << tmpf << " ";
 							}
+							std::cout << std::endl << std::endl;
 						}
 					}
 
@@ -243,6 +257,7 @@ namespace dlib{
 							size_t temp_length = 0;
 							try{
 								temp_length = atoi(tBuf);
+								std::cout << "[!]Start recieving tensor, the size is " << temp_length << std::endl;
 							}catch(...){
 								std::cerr << "incorrect with converting" << std::endl;
 							}
@@ -252,7 +267,9 @@ namespace dlib{
 								float tmg = 0;
 								std::memcpy((char*)&tmg, tbp, 4);
 								*j = tmg;
+								std::cout << *j << " ";
 							}
+							std::cout << std::endl << std::endl;
 						}
 					}
 
@@ -264,6 +281,7 @@ namespace dlib{
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
+					// visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
 					// Initialize temporary gradients contrainer from all other devices
 					all_tensors.resize(slave_status.size() + 1);
@@ -343,6 +361,7 @@ namespace dlib{
 					old_tensors.resize(this->trainer->num_computational_layers);
 
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){old_tensors[i] = &t;});
+					// visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){old_tensors[i] = &t;});
 
 					for(size_t i = 0; i < old_tensors.size(); i++){
 						if(old_tensors[i]->size() != 0){
@@ -355,7 +374,8 @@ namespace dlib{
 
 				void sync(){
 
-					this->trainer->wait_for_thread_to_pause();
+					// this->trainer->wait_for_thread_to_pause();
+					this->trainer->done_sign.wait_or_timeout(10000);
 
 					if(ismaster){
 
@@ -406,8 +426,9 @@ namespace dlib{
 						// snprintf(tBuf, sizeof(tBuf), "%d", me.number);
 						// master_conn->write(tBuf, 30);
 					}
+					this->trainer->sync_sign.broadcast();
 					std::cout << "Sync finished" << std::endl;
-					sleep(10000);
+					sleep(1000);
 
 				}
 
