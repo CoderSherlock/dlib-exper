@@ -26,6 +26,7 @@
 #include "../sockets.h"
 #include <bitset>
 
+using std::chrono::system_clock;
 namespace dlib{
 
 	struct device{
@@ -239,9 +240,9 @@ namespace dlib{
 							for(auto j = tensors[i]->begin(); j != tensors[i]->end(); j++){
 								float tmpf = *j;
 								master_conn->write((char*)&tmpf, 4);
-								std::cout << tmpf << " ";
+								// std::cout << tmpf << " ";
 							}
-							std::cout << std::endl << std::endl;
+							// std::cout << std::endl << std::endl;
 						}
 					}
 
@@ -251,7 +252,7 @@ namespace dlib{
 
 
 					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++){
-						if(cli_tensors[i].size() != 0){
+						if(cli_tensors[slave_index][i].size() != 0){
 							char tBuf[30];
 							slave_conns[slave_index]->read(tBuf, 30);
 							size_t temp_length = 0;
@@ -267,9 +268,9 @@ namespace dlib{
 								float tmg = 0;
 								std::memcpy((char*)&tmg, tbp, 4);
 								*j = tmg;
-								std::cout << *j << " ";
+								// std::cout << *j << " ";
 							}
-							std::cout << std::endl << std::endl;
+							// std::cout << std::endl << std::endl;
 						}
 					}
 
@@ -375,7 +376,7 @@ namespace dlib{
 				void sync(){
 
 					// this->trainer->wait_for_thread_to_pause();
-					this->trainer->done_sign.wait_or_timeout(10000);
+					this->trainer->done_sign.wait_or_timeout(100);
 
 					if(ismaster){
 
@@ -383,7 +384,11 @@ namespace dlib{
 
 
 						std::vector<std::vector<resizable_tensor>> all_tensors;
+						auto epoch_time = system_clock::now();  // HPZ: Counting
 						recieve_tensor(all_tensors);
+						std::cout << "(Time for recieve_tensor) is "
+								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
 								std::cout <<  "[" <<all_tensors[i][j].size() << "]";
@@ -397,7 +402,11 @@ namespace dlib{
 							}
 						}
 						// sleep(10000);
+						epoch_time = system_clock::now();  // HPZ: Counting
 						average(all_tensors);
+						std::cout << "(Time for average) is "
+								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+						epoch_time = system_clock::now();  // HPZ: Counting
 						std::vector<tensor*> temp(this->trainer->num_computational_layers);
 						for(size_t i = 0; i < temp.size(); i++)
 						{
@@ -405,6 +414,8 @@ namespace dlib{
 							temp[i] = &all_tensors[0][i];
 						}
 						update(temp);
+						std::cout << "(Time for update) is "
+								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 						std::cout << "After" << std::endl;
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
@@ -419,16 +430,11 @@ namespace dlib{
 							}
 						}
 					}else{
-
 						send_tensor();
-						// Send length of the current matrix
-						// char tBuf[30];
-						// snprintf(tBuf, sizeof(tBuf), "%d", me.number);
-						// master_conn->write(tBuf, 30);
 					}
 					this->trainer->sync_sign.broadcast();
 					std::cout << "Sync finished" << std::endl;
-					sleep(1000);
+					// sleep(1000);
 
 				}
 

@@ -32,6 +32,7 @@ template <
 typename net_type
 >
 double accuracy(net_type net, std::vector<matrix<unsigned char>> training_images, std::vector<unsigned long> training_labels){
+	auto epoch_time = system_clock::now();  // HPZ: Counting
 	std::vector<unsigned long> predicted_labels = net(training_images);
 	int num_right = 0;
 	int num_wrong = 0;
@@ -47,6 +48,8 @@ double accuracy(net_type net, std::vector<matrix<unsigned char>> training_images
 	cout << "testing num_right: " << num_right << endl;
 	cout << "testing num_wrong: " << num_wrong << endl;
 	cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
+	std::cout << "Time for Validation is " 
+			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 	return num_right/(double)(num_right+num_wrong);
 }
 
@@ -137,6 +140,9 @@ int main(int argc, char** argv) try
 	std::vector<unsigned long>         testing_labels;
 	load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
 
+
+	training_images.erase(training_images.begin() + 1000, training_images.end());
+	training_labels.erase(training_labels.begin() + 1000, training_labels.end());
 
 	std::vector<matrix<unsigned char>> local_training_images;
 	std::vector<unsigned long>         local_training_labels;
@@ -254,6 +260,8 @@ int main(int argc, char** argv) try
 			exit(0);
 		}
 	}
+
+	trainer.isDistributed = 1;
 	
 	// HPZ: Manually check if any problems happened in the init
 	sleep((unsigned int) 0);
@@ -265,11 +273,15 @@ int main(int argc, char** argv) try
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		// trainer.train_one_epoch(local_training_images, local_training_labels);
 		trainer.train_one_batch(local_training_images, local_training_labels);
+		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 		// trainer.done_sign.wait();
+		std::cout << "[Before]" << std::endl;
 		accuracy(net, local_training_images, local_training_labels);
 		accuracy(net, testing_images, testing_labels);
 
+		auto sync_time = system_clock::now();  // HPZ: Counting
 		syncer.sync();
+		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - sync_time).count() << std::endl;   // HPZ: Counting
 		
 		// serialize(trainer, std::cout);
 
@@ -280,9 +292,10 @@ int main(int argc, char** argv) try
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 
 		std::cout << trainer.learning_rate << std::endl;
-		accuracy(net, local_training_images, local_training_labels);
-		accuracy(net, testing_images, testing_labels);
-
+		// std::cout << "[After]" << std::endl;
+		// accuracy(net, local_training_images, local_training_labels);
+		// accuracy(net, testing_images, testing_labels);
+        //
 		if (trainer.learning_rate <= 0.00001)
 			break;
 	}

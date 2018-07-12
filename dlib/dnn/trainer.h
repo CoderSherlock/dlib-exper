@@ -852,8 +852,10 @@ namespace dlib
                 // Now apply all the updates to each device.
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->wait_for_all_tasks();
+
 				done_sign.broadcast();
-				sync_sign.wait();
+				if (isDistributed)
+					sync_sign.wait();
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
                 // and wait for the updates to all happen.
@@ -940,6 +942,7 @@ namespace dlib
 		const mutex done_m;
 		const signaler sync_sign;
 		const signaler done_sign;
+		bool isDistributed = 0;
 	private:
 
         const static long string_pad = 11;

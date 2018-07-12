@@ -61,6 +61,10 @@ int main(int argc, char** argv) try
 	std::vector<unsigned long>         testing_labels;
 	load_mnist_dataset(argv[1], training_images, training_labels, testing_images, testing_labels);
 
+	training_images.erase(training_images.begin() + 1000, training_images.end());
+	training_labels.erase(training_labels.begin() + 1000, training_labels.end());
+
+
 
 	std::vector<matrix<unsigned char>> local_training_images;
 	std::vector<unsigned long>         local_training_labels;
@@ -188,7 +192,9 @@ int main(int argc, char** argv) try
 	int epoch = 0;
 	while(1){
 		auto epoch_time = system_clock::now();  // HPZ: Counting
-		trainer.train_one_epoch(local_training_images, local_training_labels);
+		// trainer.train_one_epoch(local_training_images, local_training_labels);
+		trainer.set_mini_batch_size(256);
+		trainer.train_one_batch(local_training_images, local_training_labels);
 
 		// syncer.sync();
 
@@ -200,15 +206,15 @@ int main(int argc, char** argv) try
 		std::cout << "Time for Epoch is " 
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 		accuracy(net, local_training_images, local_training_labels);
-		accuracy(net, testing_images, testing_labels);
-		std::cout << trainer << std::endl;
+		// accuracy(net, testing_images, testing_labels);
+		// std::cout << trainer << std::endl;
 
 		if (trainer.learning_rate <= 0.00001)
 			break;
 	}
 	// trainer.train(training_images, training_labels);
 	accuracy(net, local_training_images, local_training_labels);
-	accuracy(net, testing_images, testing_labels);
+	// accuracy(net, testing_images, testing_labels);
 	std::cout << trainer << std::endl;
 
 	// At this point our net object should have learned how to classify MNIST images.  But
