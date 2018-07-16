@@ -58,6 +58,9 @@ namespace dlib
         void lock (
         ) const { pthread_mutex_lock(&myMutex); }
 
+        int trylock (
+        ) const { return pthread_mutex_trylock(&myMutex); }
+
         void unlock (
         ) const { pthread_mutex_unlock(&myMutex); }
 

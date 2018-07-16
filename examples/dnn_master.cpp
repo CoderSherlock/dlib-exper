@@ -141,8 +141,8 @@ int main(int argc, char** argv) try
 	load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
 
 
-	training_images.erase(training_images.begin() + 1000, training_images.end());
-	training_labels.erase(training_labels.begin() + 1000, training_labels.end());
+	// training_images.erase(training_images.begin() + 1000, training_images.end());
+	// training_labels.erase(training_labels.begin() + 1000, training_labels.end());
 
 	std::vector<matrix<unsigned char>> local_training_images;
 	std::vector<unsigned long>         local_training_labels;
@@ -272,9 +272,17 @@ int main(int argc, char** argv) try
 	while(1){
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		// trainer.train_one_epoch(local_training_images, local_training_labels);
+		
+		while(trainer.status_lock.trylock() == 0);
+		trainer.synchronization_status = 0;
+		trainer.status_lock.unlock();
+
 		trainer.train_one_batch(local_training_images, local_training_labels);
+
+		// Wait for ready
+		while(trainer.synchronization_status != 1) {}
+
 		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
-		// trainer.done_sign.wait();
 		std::cout << "[Before]" << std::endl;
 		accuracy(net, local_training_images, local_training_labels);
 		accuracy(net, testing_images, testing_labels);
@@ -282,6 +290,10 @@ int main(int argc, char** argv) try
 		auto sync_time = system_clock::now();  // HPZ: Counting
 		syncer.sync();
 		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - sync_time).count() << std::endl;   // HPZ: Counting
+
+		while(trainer.status_lock.trylock() == 0);
+		trainer.synchronization_status = 2;
+		trainer.status_lock.unlock();
 		
 		// serialize(trainer, std::cout);
 

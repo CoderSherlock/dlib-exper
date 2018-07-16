@@ -84,7 +84,7 @@ namespace dlib
         dnn_trainer(const dnn_trainer&) = delete;
         dnn_trainer& operator=(const dnn_trainer&) = delete;
 
-        explicit dnn_trainer(net_type& net_) : job_pipe(0), net(net_), sync_sign(sync_m), done_sign(done_m)
+        explicit dnn_trainer(net_type& net_) : job_pipe(0), net(net_)
         {
             solver_type default_solver;
             devices.push_back(std::make_shared<device_data>(dlib::cuda::get_device(), net, default_solver));
@@ -853,9 +853,14 @@ namespace dlib
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->wait_for_all_tasks();
 
-				done_sign.broadcast();
-				if (isDistributed)
-					sync_sign.wait();
+				while(status_lock.trylock() == 0);
+				synchronization_status = 1;
+				status_lock.unlock();
+
+				if (isDistributed){
+					while(synchronization_status != 2) {}
+				}					
+
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
                 // and wait for the updates to all happen.
@@ -938,11 +943,9 @@ namespace dlib
             job_pipe.wait_for_num_blocked_dequeues(1);
         }
 
-		const mutex sync_m;
-		const mutex done_m;
-		const signaler sync_sign;
-		const signaler done_sign;
+		const mutex status_lock;
 		bool isDistributed = 0;
+		int synchronization_status = 0;
 	private:
 
         const static long string_pad = 11;

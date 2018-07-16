@@ -376,7 +376,6 @@ namespace dlib{
 				void sync(){
 
 					// this->trainer->wait_for_thread_to_pause();
-					this->trainer->done_sign.wait_or_timeout(100);
 
 					if(ismaster){
 
@@ -432,7 +431,6 @@ namespace dlib{
 					}else{
 						send_tensor();
 					}
-					this->trainer->sync_sign.broadcast();
 					std::cout << "Sync finished" << std::endl;
 					// sleep(1000);
 
