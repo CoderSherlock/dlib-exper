@@ -299,6 +299,8 @@ int main(int argc, char** argv) try
 
 		// Wait for all devices send back to their paramaters
 
+		while(trainer.synchronization_status != 3) {}
+
 		std::cout << "Finish epoch " << epoch++ << std::endl;
 		std::cout << "Time for Epoch is " 
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting

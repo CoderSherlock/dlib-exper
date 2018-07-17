@@ -853,11 +853,13 @@ namespace dlib
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->wait_for_all_tasks();
 
-				while(status_lock.trylock() == 0);
-				synchronization_status = 1;
-				status_lock.unlock();
 
-				if (isDistributed){
+				if (isDistributed)
+				{
+					while(status_lock.trylock() == 0);
+					synchronization_status = 1;
+					status_lock.unlock();
+
 					while(synchronization_status != 2) {}
 				}					
 
@@ -927,6 +929,14 @@ namespace dlib
                     else
                         learning_rate = lr_schedule(lr_schedule.size()-1)*0.99;
                 }
+
+
+				if(isDistributed)
+				{
+					while(status_lock.trylock() == 0);
+					synchronization_status = 3;
+					status_lock.unlock();
+				}
             }
         }
         catch(...)
