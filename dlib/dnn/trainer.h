@@ -723,13 +723,17 @@ namespace dlib
             // just num_devices. 
             std::vector<std::shared_ptr<thread_pool>> tp;
             for (size_t i = 0; i < devices.size(); ++i)
-            // for(size_t i = 0; i < 4; ++i)
                 tp.push_back(std::make_shared<thread_pool>(1));
 
 
             main_iteration_counter = 0;
             while(job_pipe.dequeue(next_job))
             {
+				if (isDistributed)
+				{
+					while(synchronization_status != 0) {}
+				}					
+				
                 if (next_job.test_only)
                 {
                     // compute the testing loss

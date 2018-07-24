@@ -383,10 +383,17 @@ namespace dlib{
 
 
 						std::vector<std::vector<resizable_tensor>> all_tensors;
-						auto epoch_time = system_clock::now();  // HPZ: Counting
+
+						////////////////////////////////////////////////////////////
+						// auto epoch_time = system_clock::now();  // HPZ: Counting
+						////////////////////////////////////////////////////////////
+
 						recieve_tensor(all_tensors);
-						std::cout << "(Time for recieve_tensor) is "
-								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+
+						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						// std::cout << "(Time for recieve_tensor) is "																								//
+						//         << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
+						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
@@ -394,18 +401,24 @@ namespace dlib{
 								for(auto k = all_tensors[i][j].begin(); k != all_tensors[i][j].end(); k ++){
 									if(k == all_tensors[i][j].begin() + 10)
 										break;
-									// std::cout << "(" << k << ")";
 									std::cout << *k << " ";
 								}
 								std::cout << std::endl;
 							}
 						}
-						// sleep(10000);
-						epoch_time = system_clock::now();  // HPZ: Counting
+						
+						////////////////////////////////////////////////////
+						// epoch_time = system_clock::now();  // HPZ: Counting
+						////////////////////////////////////////////////////
+						
 						average(all_tensors);
-						std::cout << "(Time for average) is "
-								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
-						epoch_time = system_clock::now();  // HPZ: Counting
+
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						// std::cout << "(Time for average) is "																										  //
+						//         << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+						// epoch_time = system_clock::now();  // HPZ: Counting																							  //
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 						std::vector<tensor*> temp(this->trainer->num_computational_layers);
 						for(size_t i = 0; i < temp.size(); i++)
 						{
@@ -413,8 +426,12 @@ namespace dlib{
 							temp[i] = &all_tensors[0][i];
 						}
 						update(temp);
-						std::cout << "(Time for update) is "
-								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						// std::cout << "(Time for update) is "																										  //
+						//         << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 						std::cout << "After" << std::endl;
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
@@ -432,8 +449,6 @@ namespace dlib{
 						send_tensor();
 					}
 					std::cout << "Sync finished" << std::endl;
-					// sleep(1000);
-
 				}
 
 

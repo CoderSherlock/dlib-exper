@@ -141,8 +141,8 @@ int main(int argc, char** argv) try
 	load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
 
 
-	// training_images.erase(training_images.begin() + 1000, training_images.end());
-	// training_labels.erase(training_labels.begin() + 1000, training_labels.end());
+	training_images.erase(training_images.begin() + 1000, training_images.end());
+	training_labels.erase(training_labels.begin() + 1000, training_labels.end());
 
 	std::vector<matrix<unsigned char>> local_training_images;
 	std::vector<unsigned long>         local_training_labels;
@@ -282,10 +282,10 @@ int main(int argc, char** argv) try
 		// Wait for ready
 		while(trainer.synchronization_status != 1) {}
 
-		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
-		std::cout << "[Before]" << std::endl;
-		accuracy(net, local_training_images, local_training_labels);
-		accuracy(net, testing_images, testing_labels);
+		// std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+		// std::cout << "[Before]" << std::endl;
+		// accuracy(net, local_training_images, local_training_labels);
+		// accuracy(net, testing_images, testing_labels);
 
 		auto sync_time = system_clock::now();  // HPZ: Counting
 		syncer.sync();
