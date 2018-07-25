@@ -7,25 +7,7 @@ matrix:
       compiler: clang
       os: linux
       env:
-        - VARIANT=test
-      script:
-        - dlib/travis/build-and-test.sh
-
-    ###################
-    - language: cpp
-      compiler: clang
-      os: linux
-      env:
         - VARIANT=examples
-      script:
-        - dlib/travis/build-and-test.sh
-
-    ###################
-    - language: cpp
-      compiler: gcc
-      os: linux
-      env:
-        - VARIANT=test
       script:
         - dlib/travis/build-and-test.sh
 

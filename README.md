@@ -1,4 +1,4 @@
-# dlib C++ library Exper[![Travis Status](https://travis-ci.org/CoderSherlock/dlib-exper.svg?branch=master)](https://travis-ci.org/CoderSherlock/dlib-exper)
+# dlib C++ library Exper [![Travis Status](https://travis-ci.org/CoderSherlock/dlib-exper.svg?branch=master)](https://travis-ci.org/CoderSherlock/dlib-exper)
 
 We are working on distributed ml framework and optimazation for embedded systems. Dlib is an awesome framework which implemented using c++. Our work are doing some experiments and recraft based on this library. Credit to [Davis](https://github.com/davisking)'s great work.
 
