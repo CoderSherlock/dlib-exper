@@ -476,6 +476,7 @@ namespace dlib
         if (enqueue_waiters > 0)
             enqueue_sig.broadcast();
 
+
         --dequeue_waiters;
         return true;
     }

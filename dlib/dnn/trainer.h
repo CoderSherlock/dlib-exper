@@ -731,7 +731,7 @@ namespace dlib
             {
 				if (isDistributed)
 				{
-					while(synchronization_status != 0) {}
+					while(synchronization_status != 0) {std::cout << "wait to start" << std::endl;}
 				}					
 				
                 if (next_job.test_only)
@@ -858,14 +858,20 @@ namespace dlib
                     tp[i]->wait_for_all_tasks();
 
 
+				// std::cout << "Sync" << std::endl;
 				if (isDistributed)
 				{
 					while(status_lock.trylock() == 0);
+					if (synchronization_status != 0)
+						std::cout << "Something wrong with sync lock: current: " << synchronization_status << "\t Going to set: 1" << std::endl;
 					synchronization_status = 1;
+					// std::cout << "[trainer]: train completed" << std::endl;
 					status_lock.unlock();
 
 					while(synchronization_status != 2) {}
+					// std::cout << "[trainer]: Start to update" << std::endl;
 				}					
+				// std::cout << "Update" << std::endl;
 
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
@@ -938,7 +944,10 @@ namespace dlib
 				if(isDistributed)
 				{
 					while(status_lock.trylock() == 0);
+					if (synchronization_status != 2)
+						std::cout << "Something wrong with sync lock: current: " << synchronization_status << "\t Going to set: 3" << std::endl;
 					synchronization_status = 3;
+					// std::cout << "[trainer]: one job completed" << std::endl;
 					status_lock.unlock();
 				}
             }
@@ -959,7 +968,7 @@ namespace dlib
 
 		const mutex status_lock;
 		bool isDistributed = 0;
-		int synchronization_status = 0;
+		volatile int synchronization_status = 0;
 	private:
 
         const static long string_pad = 11;

@@ -207,17 +207,16 @@ namespace dlib{
 
 
 
-				void send_tensor(){
+				void send_tensors(){
 
-					// std::cout << trainer->devices[0]->net << std::endl;
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
 
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
-					// visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
-					for(size_t i = 0; i < tensors.size(); i++){
-						std::cout << tensors[i] << " "<< tensors[i]->size() << std::endl;
+					for(size_t i = 0; i < tensors.size(); i++)
+					{
+						// std::cout << tensors[i] << " "<< tensors[i]->size() << std::endl;
 					}
 
 					// for(size_t i = 0; i < tensors.size(); i++){
@@ -231,13 +230,16 @@ namespace dlib{
 					//     std::cout << std::endl;
 					// }
 
-					for(size_t i = 0; i < tensors.size(); i++){
-						if(tensors[i]->size() != 0){
+					for(size_t i = 0; i < tensors.size(); i++)
+					{
+						if(tensors[i]->size() != 0)
+						{
 							char tBuf[30];
 							snprintf(tBuf, sizeof(tBuf), "%lu", tensors[i]->size());
 							master_conn->write(tBuf, 30);
 
-							for(auto j = tensors[i]->begin(); j != tensors[i]->end(); j++){
+							for(auto j = tensors[i]->begin(); j != tensors[i]->end(); j++)
+							{
 								float tmpf = *j;
 								master_conn->write((char*)&tmpf, 4);
 								// std::cout << tmpf << " ";
@@ -258,7 +260,12 @@ namespace dlib{
 							size_t temp_length = 0;
 							try{
 								temp_length = atoi(tBuf);
-								std::cout << "[!]Start recieving tensor, the size is " << temp_length << std::endl;
+								if(temp_length == 0)
+								{	
+									// this->slave_status[slave_index] = slaveStatus::NotConn;
+									// break;
+								}
+								// std::cout << "[!]Start recieving tensor, the size is " << temp_length << std::endl;
 							}catch(...){
 								std::cerr << "incorrect with converting" << std::endl;
 							}
@@ -337,10 +344,10 @@ namespace dlib{
 						std::vector<tensor*> group;
 						for(size_t j = 0; j < all_tensors.size(); j++)
 						{
-							if(all_tensors[j][i].size() != 0)
+							if(all_tensors[j][i].size() != 0 && this->slave_status[j] == slaveStatus::Running)
 							{
 								group.push_back(&all_tensors[j][i]);
-								std::cout << &all_tensors[j][i] << std::endl;
+								// std::cout << &all_tensors[j][i] << std::endl;
 							}
 						}
 
@@ -385,38 +392,38 @@ namespace dlib{
 						std::vector<std::vector<resizable_tensor>> all_tensors;
 
 						////////////////////////////////////////////////////////////
-						// auto epoch_time = system_clock::now();  // HPZ: Counting
+						auto epoch_time = system_clock::now();  // HPZ: Counting
 						////////////////////////////////////////////////////////////
 
 						recieve_tensor(all_tensors);
 
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						// std::cout << "(Time for recieve_tensor) is "																								//
-						//         << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
+						std::cout << "(Time for recieve_tensor) is "																								//
+								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								std::cout <<  "[" <<all_tensors[i][j].size() << "]";
+								// std::cout <<  "[" <<all_tensors[i][j].size() << "]";
 								for(auto k = all_tensors[i][j].begin(); k != all_tensors[i][j].end(); k ++){
 									if(k == all_tensors[i][j].begin() + 10)
 										break;
-									std::cout << *k << " ";
+									// std::cout << *k << " ";
 								}
-								std::cout << std::endl;
+								// std::cout << std::endl;
 							}
 						}
 						
 						////////////////////////////////////////////////////
-						// epoch_time = system_clock::now();  // HPZ: Counting
+						epoch_time = system_clock::now();  // HPZ: Counting
 						////////////////////////////////////////////////////
 						
 						average(all_tensors);
 
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						// std::cout << "(Time for average) is "																										  //
-						//         << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
-						// epoch_time = system_clock::now();  // HPZ: Counting																							  //
+						std::cout << "(Time for average) is "																										  //
+								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+						epoch_time = system_clock::now();  // HPZ: Counting																							  //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						std::vector<tensor*> temp(this->trainer->num_computational_layers);
@@ -428,25 +435,25 @@ namespace dlib{
 						update(temp);
 
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						// std::cout << "(Time for update) is "																										  //
-						//         << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+						std::cout << "(Time for update) is "																										  //
+								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-						std::cout << "After" << std::endl;
+						// std::cout << "After" << std::endl;
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								std::cout <<  "[" <<all_tensors[i][j].size() << "]";
+								// std::cout <<  "[" <<all_tensors[i][j].size() << "]";
 								for(auto k = all_tensors[i][j].begin(); k != all_tensors[i][j].end(); k ++){
 									if(k == all_tensors[i][j].begin() + 10)
 										break;
 									// std::cout << "(" << k << ")";
-									std::cout << *k << " ";
+									// std::cout << *k << " ";
 								}
-								std::cout << std::endl;
+								// std::cout << std::endl;
 							}
 						}
 					}else{
-						send_tensor();
+						send_tensors();
 					}
 					std::cout << "Sync finished" << std::endl;
 				}

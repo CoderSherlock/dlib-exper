@@ -22,10 +22,18 @@
 #include <iostream>
 #include <dlib/data_io.h>
 #include <chrono>
+#include <csignal>
 
 using namespace std;
 using namespace dlib;
 using std::chrono::system_clock;
+
+int ctrl = 1;
+
+void to_exit(int signal)
+{
+	ctrl = 0;
+}
 
 
 template <
@@ -55,6 +63,9 @@ double accuracy(net_type net, std::vector<matrix<unsigned char>> training_images
 
 int main(int argc, char** argv) try
 {
+
+	signal (SIGINT, to_exit);
+
 	// This example is going to run on the MNIST dataset.  
 	if (argc < 2)
 	{
@@ -269,20 +280,28 @@ int main(int argc, char** argv) try
 	// std::cout << syncer << std::endl;
 
 	int epoch = 0;
-	while(1){
+	int mark = 0;
+	while(ctrl){
+		mark += 1;
+		if (mark > 80) break;
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		// trainer.train_one_epoch(local_training_images, local_training_labels);
 		
 		while(trainer.status_lock.trylock() == 0);
+		if (trainer.synchronization_status != 3)
+			std::cout << "Something wrong with sync lock: current: " << trainer.synchronization_status << "\t Going to set: 0" << std::endl;
 		trainer.synchronization_status = 0;
+		// std::cout << "[dnn_master]: init done, may start to train" << std::endl;
 		trainer.status_lock.unlock();
 
 		trainer.train_one_batch(local_training_images, local_training_labels);
 
 		// Wait for ready
-		while(trainer.synchronization_status != 1) {}
+		// std::cout << "Im here" << std::endl;
+		while(trainer.synchronization_status != 1) {asm("");}//std::cout<<"wait to sync" << std::endl;}
+		// std::cout << "[dnn_master]: start to sync" << std::endl;
 
-		// std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 		// std::cout << "[Before]" << std::endl;
 		// accuracy(net, local_training_images, local_training_labels);
 		// accuracy(net, testing_images, testing_labels);
@@ -292,14 +311,17 @@ int main(int argc, char** argv) try
 		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - sync_time).count() << std::endl;   // HPZ: Counting
 
 		while(trainer.status_lock.trylock() == 0);
+		if (trainer.synchronization_status != 1)
+			std::cout << "Something wrong with sync lock: current: " << trainer.synchronization_status << "\t Going to set: 2" << std::endl;
 		trainer.synchronization_status = 2;
+		// std::cout << "[dnn_master]: sync completed"<< std::endl;
 		trainer.status_lock.unlock();
 		
 		// serialize(trainer, std::cout);
 
 		// Wait for all devices send back to their paramaters
 
-		while(trainer.synchronization_status != 3) {}
+		while(trainer.synchronization_status != 3) {}//std::cout <<"wait to update"<<std::endl;}
 
 		std::cout << "Finish epoch " << epoch++ << std::endl;
 		std::cout << "Time for Epoch is " 
@@ -314,6 +336,9 @@ int main(int argc, char** argv) try
 			break;
 	}
 	// trainer.train(training_images, training_labels);
+
+	accuracy(net, local_training_images, local_training_labels);
+	accuracy(net, testing_images, testing_labels);
 	std::cout << trainer << std::endl;
 
 	// At this point our net object should have learned how to classify MNIST images.  But
