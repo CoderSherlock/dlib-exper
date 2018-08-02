@@ -65,6 +65,8 @@ namespace dlib{
 				std::vector<device>			slaves_list;
 				std::vector<connection*>	slave_conns;
 				std::vector<slaveStatus>	slave_status;
+				
+				int verbose = 1;
 
 
 
@@ -205,9 +207,40 @@ namespace dlib{
 					return 1;		
 				}
 
+				/************************************************************
+				 *	Print out the tensor abstract(size and first 10 number)
+				 *
+				 ************************************************************/
+				void print_tensor(tensor* tensor)
+				{
+					std::cout <<  "[" <<tensor->size() << "]";
+					for(auto k = tensor->begin(); k != tensor->end(); k ++){
+						if(k == tensor->begin() + 10)
+							break;
+						std::cout << *k << " ";
+					}
+					std::cout << std::endl;
+				}
 
 
-				void send_tensors(){
+				void send_tensor(connection* dest, tensor* tensor)
+				{
+					char tBuf[30];
+					snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size());
+					dest->write(tBuf, 30);
+
+					char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
+					float* tmpPtr = (float*)tmpBuf;
+					for(auto j = tensor->begin(); j != tensor->end(); j++)
+					{
+						*(tmpPtr++) = *j;
+					}
+
+					dest->write(tmpBuf, sizeof(float) * tensor->size());
+				}
+
+
+				void send_gradients_to_master(){
 
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
@@ -216,74 +249,90 @@ namespace dlib{
 
 					for(size_t i = 0; i < tensors.size(); i++)
 					{
-						// std::cout << tensors[i] << " "<< tensors[i]->size() << std::endl;
+						print_tensor(tensors[i]);
 					}
-
-					// for(size_t i = 0; i < tensors.size(); i++){
-					//     std::cout <<  "[" <<tensors[i]->size() << "]";
-					//     for(auto k = tensors[i]->begin(); k != tensors[i]->end(); k ++){
-					//         if(k == tensors[i]->begin() + 10)
-					//             break;
-					//         // std::cout << "(" << k << ")";
-					//         std::cout << *k << " ";
-					//     }
-					//     std::cout << std::endl;
-					// }
 
 					for(size_t i = 0; i < tensors.size(); i++)
 					{
 						if(tensors[i]->size() != 0)
 						{
-							char tBuf[30];
-							snprintf(tBuf, sizeof(tBuf), "%lu", tensors[i]->size());
-							master_conn->write(tBuf, 30);
-
-							for(auto j = tensors[i]->begin(); j != tensors[i]->end(); j++)
-							{
-								float tmpf = *j;
-								master_conn->write((char*)&tmpf, 4);
-								// std::cout << tmpf << " ";
-							}
-							// std::cout << std::endl << std::endl;
+							send_tensor(master_conn, tensors[i]);
 						}
 					}
 
 				}
+
+				void send_parameters(connection* slave, std::vector<tensor*> parameters)
+				{
+					for(size_t i = 0; i < parameters.size(); i++)
+					{
+						if(parameters[i]->size() != 0)
+						{
+							send_tensor(slave, parameters[i]);
+						}
+					}
+
+				}
+
+
+				/******************************************************
+				 *	Serialized send all tensors to all alive slaves
+				 *
+				 ******************************************************/
+				void send_parameters_to_slaves(std::vector<tensor*> parameters)
+				{
+					if(get_running_slaves_num() != 0){
+
+						for(int s_c = 0, s_c_max = slave_status.size(); s_c < s_c_max ; s_c ++){
+							if(slave_status[s_c] == slaveStatus::Running){
+								send_parameters(this->slave_conn[s_c], parameters);
+							}
+						}
+					}
+				}
+
+
+				/********************************************************************************************************/
+				
+				int recieve_tensor(connection* src, tensor* contrainer)
+				{
+					char sizeBuf[30];
+					src->read(sizeBuf, 30);
+					size_t length = 0;
+					try{
+						length = atoi(sizeBuf);
+						if(this->verbose)
+							std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
+
+					}catch(...){
+						std::cerr << "incorrect with converting" << std::endl;
+					}
+
+					float* tmpBuf = (float*) malloc( sizeof(float) * length);
+					src->read((char*)tmpBuf, sizeof(float) * length);
+
+					float* tmpPrt = tmpBuf;
+					for(auto j = contrainer->begin(); j != contrainer->end(); j++){
+						*j = *(tmpPrt++);
+					}
+
+					return length;
+				}
+
 
 				int recv_tensor(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
 
-
 					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++){
 						if(cli_tensors[slave_index][i].size() != 0){
-							char tBuf[30];
-							slave_conns[slave_index]->read(tBuf, 30);
-							size_t temp_length = 0;
-							try{
-								temp_length = atoi(tBuf);
-								if(temp_length == 0)
-								{	
-									// this->slave_status[slave_index] = slaveStatus::NotConn;
-									// break;
-								}
-								// std::cout << "[!]Start recieving tensor, the size is " << temp_length << std::endl;
-							}catch(...){
-								std::cerr << "incorrect with converting" << std::endl;
-							}
-							for(auto j = cli_tensors[slave_index][i].begin(); j != cli_tensors[slave_index][i].end(); j++){
-								char tbp[4];
-								slave_conns[slave_index]->read(tbp, 4);
-								float tmg = 0;
-								std::memcpy((char*)&tmg, tbp, 4);
-								*j = tmg;
-								// std::cout << *j << " ";
-							}
-							// std::cout << std::endl << std::endl;
+							this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
+							print_tensor(&cli_tensors[slave_index][i]);
 						}
 					}
 
+
 					return 1;
 				}
-				void recieve_tensor(std::vector<std::vector<resizable_tensor>> &all_tensors){
+				void recieve_tensor_2(std::vector<std::vector<resizable_tensor>> &all_tensors){
 
 					// Get the pointer of gradients from current device
 					std::vector<tensor*> tensors;
@@ -296,7 +345,7 @@ namespace dlib{
 					for(size_t i = 0; i < all_tensors.size(); i++){
 						all_tensors[i].resize(this->trainer->num_computational_layers);
 						for(size_t j = 0; j < all_tensors[i].size(); j++){
-							
+
 							if(i != (all_tensors.size()-1))
 							{
 								// Set size of tensors to slaves
@@ -330,6 +379,7 @@ namespace dlib{
 
 
 					}
+
 
 
 
@@ -395,34 +445,28 @@ namespace dlib{
 						auto epoch_time = system_clock::now();  // HPZ: Counting
 						////////////////////////////////////////////////////////////
 
-						recieve_tensor(all_tensors);
+						recieve_tensor_2(all_tensors);
 
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for recieve_tensor) is "																								//
-								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
+							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								// std::cout <<  "[" <<all_tensors[i][j].size() << "]";
-								for(auto k = all_tensors[i][j].begin(); k != all_tensors[i][j].end(); k ++){
-									if(k == all_tensors[i][j].begin() + 10)
-										break;
-									// std::cout << *k << " ";
-								}
-								// std::cout << std::endl;
+								print_tensor(&all_tensors[i][j]);
 							}
 						}
-						
+
 						////////////////////////////////////////////////////
 						epoch_time = system_clock::now();  // HPZ: Counting
 						////////////////////////////////////////////////////
-						
+
 						average(all_tensors);
 
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for average) is "																										  //
-								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
 						epoch_time = system_clock::now();  // HPZ: Counting																							  //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -436,7 +480,7 @@ namespace dlib{
 
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for update) is "																										  //
-								<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						// std::cout << "After" << std::endl;
@@ -453,9 +497,10 @@ namespace dlib{
 							}
 						}
 					}else{
-						send_tensors();
+						send_gradients_to_master();
 					}
 					std::cout << "Sync finished" << std::endl;
+					// sleep(10000);
 				}
 
 

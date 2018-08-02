@@ -64,7 +64,7 @@ double accuracy(net_type net, std::vector<matrix<unsigned char>> training_images
 int main(int argc, char** argv) try
 {
 
-	signal (SIGINT, to_exit);
+	// signal (SIGINT, to_exit);
 
 	// This example is going to run on the MNIST dataset.  
 	if (argc < 2)
@@ -329,8 +329,8 @@ int main(int argc, char** argv) try
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		// accuracy(net, local_training_images, local_training_labels);
-		// accuracy(net, testing_images, testing_labels);
+		accuracy(net, local_training_images, local_training_labels);
+		accuracy(net, testing_images, testing_labels);
         //
 		if (trainer.learning_rate <= 0.00001)
 			break;
