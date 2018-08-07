@@ -223,6 +223,21 @@ namespace dlib{
 				}
 
 
+				void wait_ack(connection* src)
+				{
+					char tmpBuf[10];
+					src->read(tmpBuf, 10);
+					std::cout << "Ack:" << tmpBuf << std::endl;
+				}
+
+				void send_ack(connection* dest, char* content)
+				{
+					char tmpBuf[10];
+					snprintf(tmpBuf, sizeof(tmpBuf), "%s", content);
+					dest->write(tmpBuf, 10);
+					std::cout << "Send ack, content is:" << tmpBuf << std::endl;
+				}
+
 				void send_tensor(connection* dest, tensor* tensor)
 				{
 					char tBuf[30];
@@ -237,6 +252,10 @@ namespace dlib{
 					}
 
 					dest->write(tmpBuf, sizeof(float) * tensor->size());
+
+					std::cout << *((float*)(tmpBuf + tensor->size() - 1)) << std::endl;
+
+					wait_ack(dest);
 				}
 
 
@@ -298,6 +317,7 @@ namespace dlib{
 				{
 					char sizeBuf[30];
 					src->read(sizeBuf, 30);
+					std::cout << sizeBuf << std::endl;
 					size_t length = 0;
 					try{
 						length = atoi(sizeBuf);
@@ -316,6 +336,8 @@ namespace dlib{
 						*j = *(tmpPrt++);
 					}
 
+					std::cout << *((tmpBuf + contrainer->size() - 1)) << std::endl;
+					send_ack(src, "got");
 					return length;
 				}
 
@@ -500,7 +522,7 @@ namespace dlib{
 						send_gradients_to_master();
 					}
 					std::cout << "Sync finished" << std::endl;
-					// sleep(10000);
+					sleep(10000);
 				}
 
 
