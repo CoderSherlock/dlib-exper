@@ -213,13 +213,24 @@ namespace dlib{
 				 ************************************************************/
 				void print_tensor(tensor* tensor, int size)
 				{
-					std::cout <<  "[" <<tensor->size() << "]";
+					std::cout <<  "[" <<tensor->size() << "] ";
 					for(auto k = tensor->begin(); k != tensor->end(); k ++){
 						if(k == tensor->begin() + size)
 							break;
 						std::cout << *k << " ";
 					}
 					std::cout << std::endl;
+				}
+
+				/************************************************
+				 *	Print a buffer of n size
+				 ************************************************/
+				void print_buffer(char* ptr, size_t n)
+				{
+					std::cout << "\n" << n << "---------------------------------\n";
+					for(size_t i = 0; i < n; i++)
+						std::cout << *(ptr + i);
+					std::cout << "\n---------------------------------\n";
 				}
 
 
@@ -251,7 +262,8 @@ namespace dlib{
 						*(tmpPtr++) = *j;
 					}
 
-					dest->write(tmpBuf, sizeof(float) * tensor->size());
+
+					std::cout << dest->write(tmpBuf, sizeof(float) * tensor->size()) << std::endl;
 
 					wait_ack(dest);
 				}
@@ -266,13 +278,14 @@ namespace dlib{
 
 					for(size_t i = 0; i < tensors.size(); i++)
 					{
-						print_tensor(tensors[i], tensors[i]->size());
+						// print_tensor(tensors[i], tensors[i]->size());
 					}
 
 					for(size_t i = 0; i < tensors.size(); i++)
 					{
 						if(tensors[i]->size() != 0)
 						{
+							// print_tensor(tensors[i], tensors[i]->size());
 							send_tensor(master_conn, tensors[i]);
 						}
 					}
@@ -285,6 +298,7 @@ namespace dlib{
 					{
 						if(parameters[i]->size() != 0)
 						{
+							// this->print_tensor(parameters[i], 10);
 							send_tensor(slave, parameters[i]);
 						}
 					}
@@ -296,13 +310,13 @@ namespace dlib{
 				 *	Serialized send all tensors to all alive slaves
 				 *
 				 ******************************************************/
-				void send_parameters_to_slaves(std::vector<tensor*> parameters)
+				void send_parameters_to_slaves_serialised(std::vector<tensor*> parameters)
 				{
 					if(get_running_slaves_num() != 0){
 
 						for(int s_c = 0, s_c_max = slave_status.size(); s_c < s_c_max ; s_c ++){
 							if(slave_status[s_c] == slaveStatus::Running){
-								send_parameters(this->slave_conn[s_c], parameters);
+								send_parameters(this->slave_conns[s_c], parameters);
 							}
 						}
 					}
@@ -326,12 +340,11 @@ namespace dlib{
 						std::cerr << "incorrect with converting" << std::endl;
 					}
 
-					float* tmpBuf = (float*) malloc( sizeof(float) * length);
-					src->read((char*)tmpBuf, sizeof(float) * length);
+					float* tmpBuf = (float*) malloc( sizeof(float));
 
-					float* tmpPrt = tmpBuf;
 					for(auto j = contrainer->begin(); j != contrainer->end(); j++){
-						*j = *(tmpPrt++);
+						src->read((char*)tmpBuf, sizeof(float));
+						*j = *(tmpBuf);
 					}
 
 					send_ack(src, "got");
@@ -347,10 +360,9 @@ namespace dlib{
 						{
 							this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
 
-							print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
+							// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
 						}
 					}
-
 
 					return 1;
 				}
@@ -414,9 +426,28 @@ namespace dlib{
 				}
 
 
-				void recieve_updated_parameters()
+				void recieve_updated_parameters(std::vector<resizable_tensor> &updated)
 				{
+					// Initialize
+					std::vector<tensor*> tensors;
+					tensors.resize(this->trainer->num_computational_layers);
+					visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
+					updated.resize(this->trainer->num_computational_layers);
+					for(size_t i = 0; i < updated.size(); i++)
+					{
+						updated[i].copy_size(*tensors[i]);
+					}
+
+
+					for(size_t i = 0; i < updated.size(); i++)
+					{
+						if(updated[i].size() != 0)
+							this->recieve_tensor(master_conn, &updated[i]);
+
+						// this->print_tensor(&updated[i], 10);
+
+					}
 				}
 
 				void average(std::vector<std::vector<resizable_tensor>> &all_tensors){
@@ -487,7 +518,7 @@ namespace dlib{
 
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								print_tensor(&all_tensors[i][j], 10);
+								// print_tensor(&all_tensors[i][j], 10);
 							}
 						}
 
@@ -511,22 +542,20 @@ namespace dlib{
 						}
 						update(temp);
 
+
+						send_parameters_to_slaves_serialised(temp);
+
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for update) is "																										  //
 							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						// std::cout << "After" << std::endl;
-						for(size_t i = 0; i < all_tensors.size(); i++){
-							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								// std::cout <<  "[" <<all_tensors[i][j].size() << "]";
-								for(auto k = all_tensors[i][j].begin(); k != all_tensors[i][j].end(); k ++){
-									if(k == all_tensors[i][j].begin() + 10)
-										break;
-									// std::cout << "(" << k << ")";
-									// std::cout << *k << " ";
-								}
-								// std::cout << std::endl;
+						for(size_t i = 0; i < all_tensors.size(); i++)
+						{
+							for(size_t j = 0; j < all_tensors[i].size(); j++)
+							{
+								// print_tensor(&all_tensors[i][j], 10);
 							}
 						}
 					}else{
@@ -534,6 +563,16 @@ namespace dlib{
 						std::vector<resizable_tensor> updated;
 
 						send_gradients_to_master();
+
+						recieve_updated_parameters(updated);
+
+						std::vector<tensor*> temp(this->trainer->num_computational_layers);
+						for(size_t i = 0; i < temp.size(); i++)
+						{
+							// TODO : Deal with 0
+							temp[i] = &updated[i];
+						}
+						update(temp);
 					}
 					std::cout << "Sync finished" << std::endl;
 					sleep(1000);
