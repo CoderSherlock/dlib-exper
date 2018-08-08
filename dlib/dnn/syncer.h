@@ -211,11 +211,11 @@ namespace dlib{
 				 *	Print out the tensor abstract(size and first 10 number)
 				 *
 				 ************************************************************/
-				void print_tensor(tensor* tensor)
+				void print_tensor(tensor* tensor, int size)
 				{
 					std::cout <<  "[" <<tensor->size() << "]";
 					for(auto k = tensor->begin(); k != tensor->end(); k ++){
-						if(k == tensor->begin() + 10)
+						if(k == tensor->begin() + size)
 							break;
 						std::cout << *k << " ";
 					}
@@ -253,8 +253,6 @@ namespace dlib{
 
 					dest->write(tmpBuf, sizeof(float) * tensor->size());
 
-					std::cout << *((float*)(tmpBuf + tensor->size() - 1)) << std::endl;
-
 					wait_ack(dest);
 				}
 
@@ -268,7 +266,7 @@ namespace dlib{
 
 					for(size_t i = 0; i < tensors.size(); i++)
 					{
-						print_tensor(tensors[i]);
+						print_tensor(tensors[i], tensors[i]->size());
 					}
 
 					for(size_t i = 0; i < tensors.size(); i++)
@@ -336,31 +334,33 @@ namespace dlib{
 						*j = *(tmpPrt++);
 					}
 
-					std::cout << *((tmpBuf + contrainer->size() - 1)) << std::endl;
 					send_ack(src, "got");
 					return length;
 				}
 
 
-				int recv_tensor(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
+				int recieve_gradients_from_one(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
 
-					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++){
-						if(cli_tensors[slave_index][i].size() != 0){
+					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++)
+					{
+						if(cli_tensors[slave_index][i].size() != 0)
+						{
 							this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
-							print_tensor(&cli_tensors[slave_index][i]);
+
+							print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
 						}
 					}
 
 
 					return 1;
 				}
-				void recieve_tensor_2(std::vector<std::vector<resizable_tensor>> &all_tensors){
 
+				void init_before_recieving(std::vector<std::vector<resizable_tensor>> &all_tensors)
+				{
 					// Get the pointer of gradients from current device
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
-					// visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
 					// Initialize temporary gradients contrainer from all other devices
 					all_tensors.resize(slave_status.size() + 1);
@@ -387,24 +387,35 @@ namespace dlib{
 						all_tensors[all_tensors.size() - 1][i] = *tensors[i];
 					}
 
+				}
+
+				void recieve_gradients_serialism(std::vector<std::vector<resizable_tensor>> &all_tensors)
+				{
+
+					init_before_recieving(all_tensors);
+
 					// Get gradients if there exists slave machine
-					if(get_running_slaves_num() != 0){
-
-						for(int s_c = 0, s_c_max = slave_status.size(); s_c < s_c_max ; s_c ++){
-							if(slave_status[s_c] == slaveStatus::Running){
+					if(get_running_slaves_num() != 0)
+					{
+						for(int s_c = 0, s_c_max = slave_status.size(); s_c < s_c_max ; s_c ++)
+						{
+							if(slave_status[s_c] == slaveStatus::Running)
+							{
 								std::cout << "Reciveing from " << s_c << std::endl;
-								recv_tensor(s_c, all_tensors);
-
+								recieve_gradients_from_one(s_c, all_tensors);
 							}
-
 						}					
-
-
 					}
+				}
+
+				void recieve_gradients_parallism(std::vector<std::vector<resizable_tensor>> &all_tensors)
+				{
+					init_before_recieving(all_tensors);
+				}
 
 
-
-
+				void recieve_updated_parameters()
+				{
 
 				}
 
@@ -467,7 +478,7 @@ namespace dlib{
 						auto epoch_time = system_clock::now();  // HPZ: Counting
 						////////////////////////////////////////////////////////////
 
-						recieve_tensor_2(all_tensors);
+						recieve_gradients_serialism(all_tensors);
 
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for recieve_tensor) is "																								//
@@ -476,7 +487,7 @@ namespace dlib{
 
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								print_tensor(&all_tensors[i][j]);
+								print_tensor(&all_tensors[i][j], 10);
 							}
 						}
 
@@ -519,10 +530,13 @@ namespace dlib{
 							}
 						}
 					}else{
+
+						std::vector<resizable_tensor> updated;
+
 						send_gradients_to_master();
 					}
 					std::cout << "Sync finished" << std::endl;
-					sleep(10000);
+					sleep(1000);
 				}
 
 
