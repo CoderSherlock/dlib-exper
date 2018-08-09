@@ -543,13 +543,21 @@ namespace dlib{
 						update(temp);
 
 
-						send_parameters_to_slaves_serialised(temp);
 
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for update) is "																										  //
 							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+						epoch_time = system_clock::now();  // HPZ: Counting																							  //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+						send_parameters_to_slaves_serialised(temp);
+
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						std::cout << "(Time for syncback) is "																										  //
+							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+						epoch_time = system_clock::now();  // HPZ: Counting																							  //
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						
 						// std::cout << "After" << std::endl;
 						for(size_t i = 0; i < all_tensors.size(); i++)
 						{
