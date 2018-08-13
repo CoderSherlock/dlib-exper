@@ -206,7 +206,7 @@ int main(int argc, char** argv) try
 		std::cout << "Time for Epoch is " 
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 		accuracy(net, local_training_images, local_training_labels);
-		// accuracy(net, testing_images, testing_labels);
+		accuracy(net, testing_images, testing_labels);
 		// std::cout << trainer << std::endl;
 
 		if (trainer.learning_rate <= 0.00001)

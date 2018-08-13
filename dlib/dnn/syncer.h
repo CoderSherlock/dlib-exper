@@ -583,7 +583,7 @@ namespace dlib{
 						update(temp);
 					}
 					std::cout << "Sync finished" << std::endl;
-					sleep(1000);
+					// sleep(1000);
 				}
 
 

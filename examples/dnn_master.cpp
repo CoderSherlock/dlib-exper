@@ -281,9 +281,10 @@ int main(int argc, char** argv) try
 
 	int epoch = 0;
 	int mark = 0;
+	auto time = 0;
 	while(ctrl){
 		mark += 1;
-		if (mark > 80) break;
+		// if (mark > 80) break;
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		// trainer.train_one_epoch(local_training_images, local_training_labels);
 		
@@ -326,14 +327,17 @@ int main(int argc, char** argv) try
 		std::cout << "Finish epoch " << epoch++ << std::endl;
 		std::cout << "Time for Epoch is " 
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+		time += std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count();
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		accuracy(net, local_training_images, local_training_labels);
-		accuracy(net, testing_images, testing_labels);
+		// accuracy(net, local_training_images, local_training_labels);
+		// accuracy(net, testing_images, testing_labels);
         //
 		if (trainer.learning_rate <= 0.00001)
 			break;
+
+		
 	}
 	// trainer.train(training_images, training_labels);
 

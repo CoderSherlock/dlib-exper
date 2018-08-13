@@ -228,6 +228,10 @@ namespace dlib
 			{
 				epoch_pos = 0;
 			}
+			if(verbose)
+				std::cout << "Epoch: " << rpad(cast_to_string(epoch_iteration+1),epoch_string_pad) << "  " 
+						  << "learning rate: " << rpad(cast_to_string(learning_rate),lr_string_pad) << "  "
+						  << "average loss: " << rpad(cast_to_string(get_average_loss()),string_pad) << "  ";
 			print_progress();
 			// wait_for_thread_to_pause();
 			// sync_to_disk(true);
