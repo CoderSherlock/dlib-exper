@@ -279,7 +279,7 @@ int main(int argc, char** argv) try
 
 	// std::cout << syncer << std::endl;
 
-	int epoch = 0;
+	int epoch = 0, batch = 0;
 	int mark = 0;
 	auto time = 0;
 	while(ctrl){
@@ -292,13 +292,13 @@ int main(int argc, char** argv) try
 		if (trainer.synchronization_status != 3)
 			std::cout << "Something wrong with sync lock: current: " << trainer.synchronization_status << "\t Going to set: 0" << std::endl;
 		trainer.synchronization_status = 0;
-		// std::cout << "[dnn_master]: init done, may start to train" << std::endl;
+		std::cout << "[dnn_master]: init done, may start to train" << std::endl;
 		trainer.status_lock.unlock();
 
-		trainer.train_one_batch(local_training_images, local_training_labels);
+		epoch += trainer.train_one_batch(local_training_images, local_training_labels);
 
 		// Wait for ready
-		// std::cout << "Im here" << std::endl;
+		std::cout << "Im here" << std::endl;
 		while(trainer.synchronization_status != 1) {asm("");}//std::cout<<"wait to sync" << std::endl;}
 		// std::cout << "[dnn_master]: start to sync" << std::endl;
 
@@ -324,8 +324,8 @@ int main(int argc, char** argv) try
 
 		while(trainer.synchronization_status != 3) {}//std::cout <<"wait to update"<<std::endl;}
 
-		std::cout << "Finish epoch " << epoch++ << std::endl;
-		std::cout << "Time for Epoch is " 
+		std::cout << "Finish batch " << batch++ << std::endl;
+		std::cout << "Time for batch is " 
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
 		time += std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count();
 
@@ -334,8 +334,15 @@ int main(int argc, char** argv) try
 		// accuracy(net, local_training_images, local_training_labels);
 		// accuracy(net, testing_images, testing_labels);
         //
-		if (trainer.learning_rate <= 0.00001)
-			break;
+		
+		if(ismaster)
+		{
+			if (trainer.learning_rate <= 0.001)
+				break;
+
+			if (epoch >= 60)
+				break;
+		}
 
 		
 	}
@@ -343,6 +350,7 @@ int main(int argc, char** argv) try
 
 	accuracy(net, local_training_images, local_training_labels);
 	accuracy(net, testing_images, testing_labels);
+	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
 
 	// At this point our net object should have learned how to classify MNIST images.  But

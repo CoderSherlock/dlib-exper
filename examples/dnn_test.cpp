@@ -142,7 +142,7 @@ int main(int argc, char** argv) try
 
 	trainer.set_learning_rate(0.01);
 	trainer.set_min_learning_rate(0.00001);
-	trainer.set_mini_batch_size(30000);
+	trainer.set_mini_batch_size(128);
 	trainer.be_verbose(); 
 	// Since DNN training can take a long time, we can ask the trainer to save its state to
 	// a file named "mnist_sync" every 20 seconds.  This way, if we kill this program and
@@ -193,7 +193,6 @@ int main(int argc, char** argv) try
 	while(1){
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		// trainer.train_one_epoch(local_training_images, local_training_labels);
-		trainer.set_mini_batch_size(256);
 		trainer.train_one_batch(local_training_images, local_training_labels);
 
 		// syncer.sync();

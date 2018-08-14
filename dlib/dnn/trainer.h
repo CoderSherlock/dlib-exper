@@ -213,7 +213,7 @@ namespace dlib
 			// sync_to_disk(true);
 		}
 
-		void train_one_batch(
+		int train_one_batch(
 			const std::vector<input_type>& data,
 			const std::vector<training_label_type>& labels
 		)
@@ -227,12 +227,15 @@ namespace dlib
 			if(epoch_pos > data.size())
 			{
 				epoch_pos = 0;
+				print_progress();
+				return 1;
 			}
-			if(verbose)
-				std::cout << "Epoch: " << rpad(cast_to_string(epoch_iteration+1),epoch_string_pad) << "  " 
-						  << "learning rate: " << rpad(cast_to_string(learning_rate),lr_string_pad) << "  "
-						  << "average loss: " << rpad(cast_to_string(get_average_loss()),string_pad) << "  ";
+			// if(verbose)
+			//     std::cout << "Epoch: " << rpad(cast_to_string(epoch_iteration+1),epoch_string_pad) << "  "
+			//               << "learning rate: " << rpad(cast_to_string(learning_rate),lr_string_pad) << "  "
+			//               << "average loss: " << rpad(cast_to_string(get_average_loss()),string_pad) << "  ";
 			print_progress();
+			return 0;
 			// wait_for_thread_to_pause();
 			// sync_to_disk(true);
 		}
