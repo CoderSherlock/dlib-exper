@@ -327,6 +327,7 @@ namespace dlib{
 				
 				int recieve_tensor(connection* src, tensor* contrainer)
 				{
+					auto epoch_time = system_clock::now();  // HPZ: Counting
 					char sizeBuf[30];
 					src->read(sizeBuf, 30);
 					std::cout << sizeBuf << std::endl;
@@ -348,12 +349,14 @@ namespace dlib{
 					}
 
 					send_ack(src, "got");
+					std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
 					return length;
 				}
 
 
 				int recieve_gradients_from_one(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
 
+					auto epoch_time = system_clock::now();  // HPZ: Counting
 					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++)
 					{
 						if(cli_tensors[slave_index][i].size() != 0)
@@ -363,6 +366,7 @@ namespace dlib{
 							// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
 						}
 					}
+					std::cout << "(Time for real_recieve_tensor) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
 
 					return 1;
 				}
