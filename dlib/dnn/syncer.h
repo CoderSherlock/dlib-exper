@@ -208,6 +208,20 @@ namespace dlib{
 				}
 
 				/************************************************************
+				 * Do some statistics to tensosr (experiment used only)	
+				 *
+				 ************************************************************/
+				int stat_tensor(tensor* tensor)
+				{
+					int count = 0;
+					for(auto k = tensor->begin(); k != tensor->end(); k ++){
+						if (*k == 0 )
+							count += 1;
+					}
+					return count;
+				}
+
+				/************************************************************
 				 *	Print out the tensor abstract(size and first 10 number)
 				 *
 				 ************************************************************/
@@ -522,7 +536,10 @@ namespace dlib{
 
 						for(size_t i = 0; i < all_tensors.size(); i++){
 							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								// print_tensor(&all_tensors[i][j], 10);
+								if(all_tensors[i][j].size() != 0){
+									std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
+									print_tensor(&all_tensors[i][j], 10);
+								}
 							}
 						}
 
@@ -535,6 +552,19 @@ namespace dlib{
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for average) is "																										  //
 							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						
+
+						for(size_t i = 0; i < all_tensors.size(); i++){
+							for(size_t j = 0; j < all_tensors[i].size(); j++){
+								if(all_tensors[i][j].size() != 0){
+									std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
+									print_tensor(&all_tensors[i][j], 10);
+								}
+							}
+						}
+
+						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						epoch_time = system_clock::now();  // HPZ: Counting																							  //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -587,7 +617,7 @@ namespace dlib{
 						update(temp);
 					}
 					std::cout << "Sync finished" << std::endl;
-					// sleep(1000);
+					// sleep(10000);
 				}
 
 
