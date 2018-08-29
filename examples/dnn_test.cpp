@@ -27,7 +27,6 @@ using namespace std;
 using namespace dlib;
 using std::chrono::system_clock;
 
-
 template <
 typename net_type
 >
@@ -88,7 +87,6 @@ int main(int argc, char** argv) try
 
 
 	std::cout << local_training_images.size() << std::endl;
-
 
 	// std::cout << training_images.size() << std::endl;
 	// training_images.erase(training_images.begin(), training_images.begin()+30000);

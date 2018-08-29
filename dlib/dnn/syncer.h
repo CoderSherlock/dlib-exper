@@ -25,6 +25,7 @@
 
 #include "../sockets.h"
 #include <bitset>
+#include <thread>
 
 using std::chrono::system_clock;
 namespace dlib{
@@ -207,6 +208,12 @@ namespace dlib{
 					return 1;		
 				}
 
+
+				void init_thread_pool()
+				{
+
+				}
+
 				/************************************************************
 				 * Do some statistics to tensosr (experiment used only)	
 				 *
@@ -370,7 +377,6 @@ namespace dlib{
 
 				int recieve_gradients_from_one(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
 
-					auto epoch_time = system_clock::now();  // HPZ: Counting
 					for(size_t i = 0; i < cli_tensors[slave_index].size(); i++)
 					{
 						if(cli_tensors[slave_index][i].size() != 0)
@@ -380,8 +386,6 @@ namespace dlib{
 							// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
 						}
 					}
-					std::cout << "(Time for real_recieve_tensor) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
-
 					return 1;
 				}
 
@@ -438,9 +442,23 @@ namespace dlib{
 					}
 				}
 
+
 				void recieve_gradients_parallism(std::vector<std::vector<resizable_tensor>> &all_tensors)
 				{
 					init_before_recieving(all_tensors);
+					std::vector<std::thread *> recievers; 
+					recievers.resize(all_tensors.size() - 1);
+
+					for(size_t i = 0; i< recievers.size(); i++)
+					{
+						if(slave_status[i] == slaveStatus::Running)
+							recievers[i] = new std::thread(&dnn_syncer::recieve_gradients_from_one, this, i, std::ref(all_tensors));
+					}
+
+					for(size_t i = 0; i < recievers.size(); i++)
+					{
+						recievers[i]->join();
+					}
 				}
 
 
@@ -527,7 +545,8 @@ namespace dlib{
 						auto epoch_time = system_clock::now();  // HPZ: Counting
 						////////////////////////////////////////////////////////////
 
-						recieve_gradients_serialism(all_tensors);
+						// recieve_gradients_serialism(all_tensors);
+						recieve_gradients_parallism(all_tensors);
 
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for recieve_tensor) is "																								//
