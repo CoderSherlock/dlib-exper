@@ -344,6 +344,27 @@ namespace dlib{
 				}
 
 
+				/******************************************************
+				 *	Paralized send all tensors to all alive slaves
+				 *
+				 ******************************************************/
+				void send_parameters_to_slaves_paralized(std::vector<tensor*> parameters)
+				{
+					std::vector<std::thread *> recievers; 
+					recievers.resize(this->slaves_list.size());
+
+					for(size_t i = 0; i< recievers.size(); i++)
+					{
+						if(slave_status[i] == slaveStatus::Running)
+							recievers[i] = new std::thread(&dnn_syncer::send_parameters, this, slave_conns[i], parameters);
+					}
+
+					for(size_t i = 0; i < recievers.size(); i++)
+					{
+						recievers[i]->join();
+					}
+				}
+
 				/********************************************************************************************************/
 				
 				int recieve_tensor(connection* src, tensor* contrainer)
@@ -603,7 +624,7 @@ namespace dlib{
 						epoch_time = system_clock::now();  // HPZ: Counting																							  //
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-						send_parameters_to_slaves_serialised(temp);
+						send_parameters_to_slaves_paralized(temp);
 
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for syncback) is "																										  //
