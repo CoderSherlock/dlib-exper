@@ -369,7 +369,7 @@ namespace dlib{
 
 				/********************************************************************************************************/
 				
-				int recieve_tensor(connection* src, tensor* contrainer)
+				int recieve_tensor(connection* src, tensor* container)
 				{
 					// auto epoch_time = system_clock::now();  // HPZ: Counting
 					
@@ -386,14 +386,22 @@ namespace dlib{
 						std::cerr << "incorrect with converting" << std::endl;
 					}
 
+					try {
+						if (container->size() != (length / sizeof(*container->begin()))) {
+							std::cerr << "Recieving size is not same as container" << std::endl;
+						}
+					} catch(...) {
+
+					}
+
 					float* tmpBuf = (float*) malloc( sizeof(float));
 
-					for(auto j = contrainer->begin(); j != contrainer->end(); j++){
+					for(auto j = container->begin(); j != container->end(); j++){
 						src->read((char*)tmpBuf, sizeof(float));
 						*j = *(tmpBuf);
 					}
 
-					send_ack(src, "got");
+					send_ack(src, (char*)"got");
 
 					// std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
 					
@@ -415,23 +423,42 @@ namespace dlib{
 						std::cerr << "incorrect with converting" << std::endl;
 					}
 
+					try {
+						if (container->size() != (length / sizeof(*container->begin()))) {
+							std::cerr << "Recieving size is not same as container" << std::endl;
+						}
+						if (length == 0) {
+							std::cerr << "Length is invalid" << std::endl;
+							return -1;
+						}
+					} catch(...) {
+
+					}
+
+					std::cout << "f" << std::endl;
 					// Fix-size reading to the "deflated_buffer"
 					char deflated_buffer[length];
-					char* deflated_ptr = &deflated_buffer;
+					char* deflated_ptr = &deflated_buffer[0];
 					size_t read_length = length;
 					while (read_length > COMP_BUFFER_SIZE) {
+					    std::cout << read_length << std::endl;
 						src->read(deflated_ptr, COMP_BUFFER_SIZE);
 						deflated_ptr += COMP_BUFFER_SIZE;
+						read_length -= COMP_BUFFER_SIZE;
 					}
 					if (read_length > 0) {
 						src->read(deflated_ptr, read_length);
 					}
 
+					//TODO: Add deflation process
+
+					float* tmpPtr = (float*)&deflated_buffer[0];
 					for (auto j = container->begin(); j != container->end(); j++) {
-						
+					    *j = *tmpPtr;
+					    tmpPtr ++;
 					}
 
-					send_ack(src, "got_comp");
+					send_ack(src, (char*)"got_comp_2");
 					return length;
 				}
 
@@ -442,7 +469,7 @@ namespace dlib{
 					{
 						if(cli_tensors[slave_index][i].size() != 0)
 						{
-							this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
+							this->recieve_compressed_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
 
 							// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
 						}
