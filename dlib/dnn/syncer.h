@@ -27,6 +27,8 @@
 #include <bitset>
 #include <thread>
 
+
+#define COMP_BUFFER_SIZE 256
 using std::chrono::system_clock;
 namespace dlib{
 
@@ -273,7 +275,7 @@ namespace dlib{
 				void send_tensor(connection* dest, tensor* tensor)
 				{
 					char tBuf[30];
-					snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size());
+					snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
 					dest->write(tBuf, 30);
 
 					char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
@@ -369,7 +371,8 @@ namespace dlib{
 				
 				int recieve_tensor(connection* src, tensor* contrainer)
 				{
-					auto epoch_time = system_clock::now();  // HPZ: Counting
+					// auto epoch_time = system_clock::now();  // HPZ: Counting
+					
 					char sizeBuf[30];
 					src->read(sizeBuf, 30);
 					std::cout << sizeBuf << std::endl;
@@ -391,7 +394,44 @@ namespace dlib{
 					}
 
 					send_ack(src, "got");
-					std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
+
+					// std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
+					
+					return length;
+				}
+
+				int recieve_compressed_tensor(connection* src, tensor* container)
+				{
+					char sizeBuf[30];
+					src->read(sizeBuf, 30);
+					std::cout << sizeBuf << std::endl;
+					size_t length = 0;
+					try
+					{
+						length = atoi(sizeBuf);
+						if(this->verbose)
+							std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
+					} catch(...) {
+						std::cerr << "incorrect with converting" << std::endl;
+					}
+
+					// Fix-size reading to the "deflated_buffer"
+					char deflated_buffer[length];
+					char* deflated_ptr = &deflated_buffer;
+					size_t read_length = length;
+					while (read_length > COMP_BUFFER_SIZE) {
+						src->read(deflated_ptr, COMP_BUFFER_SIZE);
+						deflated_ptr += COMP_BUFFER_SIZE;
+					}
+					if (read_length > 0) {
+						src->read(deflated_ptr, read_length);
+					}
+
+					for (auto j = container->begin(); j != container->end(); j++) {
+						
+					}
+
+					send_ack(src, "got_comp");
 					return length;
 				}
 
@@ -571,7 +611,7 @@ namespace dlib{
 
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 						std::cout << "(Time for recieve_tensor) is "																								//
-							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
+							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting 	//
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						for(size_t i = 0; i < all_tensors.size(); i++){
