@@ -26,6 +26,7 @@
 #include "../sockets.h"
 #include <bitset>
 #include <thread>
+#include <cstring>
 
 
 #define COMP_BUFFER_SIZE 256
@@ -43,7 +44,7 @@ namespace dlib{
 		device(int number_, std::string ip_, int port_): number(number_), ip(ip_), port(port_){
 			number = number_;
 			ip = ip_;
-			port = port_;			
+			port = port_;
 		}
 	};
 
@@ -68,14 +69,16 @@ namespace dlib{
 				std::vector<device>			slaves_list;
 				std::vector<connection*>	slave_conns;
 				std::vector<slaveStatus>	slave_status;
-				
-				int verbose = 1;
+
+				int verbose = 0;
+				int num_debug = 1;
+				int exper = 0;
 
 
 
 
 
-				// Default sync initilization 
+				// Default sync initilization
 				dnn_syncer();
 				dnn_syncer(const dnn_syncer&);
 				dnn_syncer& operator=(const dnn_syncer&);
@@ -116,8 +119,8 @@ namespace dlib{
 
 						for(int i = 0; i < this->slaves_list.size(); i++ ){
 							connection* conn = NULL;
-							if(create_connection(conn, 
-										(unsigned short)slaves_list[i].port	, slaves_list[i].ip, 
+							if(create_connection(conn,
+										(unsigned short)slaves_list[i].port	, slaves_list[i].ip,
 										(unsigned short)me.port + i			, me.ip)
 							  ){
 								std::cerr << "Create failed on " << slaves_list[i].ip << ":" << slaves_list[i].port << std::endl;
@@ -207,7 +210,7 @@ namespace dlib{
 				int notify_finish(){
 					// TODO
 
-					return 1;		
+					return 1;
 				}
 
 
@@ -217,7 +220,7 @@ namespace dlib{
 				}
 
 				/************************************************************
-				 * Do some statistics to tensosr (experiment used only)	
+				 * Do some statistics to tensosr (experiment used only)
 				 *
 				 ************************************************************/
 				int stat_tensor(tensor* tensor)
@@ -259,23 +262,26 @@ namespace dlib{
 
 				void wait_ack(connection* src)
 				{
-					char tmpBuf[10];
+					char tmpBuf[10] = {0};
 					src->read(tmpBuf, 10);
-					std::cout << "Ack:" << tmpBuf << std::endl;
+					if (this->verbose)
+                        std::cout << "Ack:" << tmpBuf << std::endl;
 				}
 
 				void send_ack(connection* dest, char* content)
 				{
-					char tmpBuf[10];
+					char tmpBuf[10] = {0};
 					snprintf(tmpBuf, sizeof(tmpBuf), "%s", content);
 					dest->write(tmpBuf, 10);
-					std::cout << "Send ack, content is:" << tmpBuf << std::endl;
+					if (this->verbose)
+                        std::cout << "Send ack, content is:" << tmpBuf << std::endl;
 				}
 
 				void send_tensor(connection* dest, tensor* tensor)
 				{
-					char tBuf[30];
+					char tBuf[30] = {0};
 					snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
+					std::cout << "tBuf:" << tBuf << std::endl;
 					dest->write(tBuf, 30);
 
 					char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
@@ -291,6 +297,50 @@ namespace dlib{
 					wait_ack(dest);
 				}
 
+				void send_compressed_tensor(connection* dest, tensor* tensor)
+				{
+					char tBuf[30] = {0};
+					snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
+					std::cout << "tBuf:" << tBuf << std::endl;
+					dest->write(tBuf, 30);
+
+					char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
+					float* tmpPtr = (float*)tmpBuf;
+					for(auto j = tensor->begin(); j != tensor->end(); j++)
+					{
+						*(tmpPtr++) = *j;
+					}
+
+					char* write_Ptr = tmpBuf;
+					size_t write_length = 0;
+					size_t write_max = sizeof(float) * tensor->size();
+					size_t flag = 0;
+					while(write_length + COMP_BUFFER_SIZE <= write_max) {
+						dest->write(write_Ptr, COMP_BUFFER_SIZE);
+
+						if (this->num_debug) {
+							char fuck_num[COMP_BUFFER_SIZE] = {0};
+							std::memcpy(fuck_num, write_Ptr, COMP_BUFFER_SIZE);
+							std::cout << (++flag) << ": ";
+							for(auto i : fuck_num) {
+								std::cout << (int)i;
+							}
+							std::cout << std::endl;
+						}
+
+						write_length += COMP_BUFFER_SIZE;
+						write_Ptr += COMP_BUFFER_SIZE;
+					}
+
+					if (write_length < write_max) {
+						dest->write(write_Ptr, write_max - write_length);
+					}
+
+
+					wait_ack(dest);
+
+				}
+
 
 				void send_gradients_to_master(){
 
@@ -299,17 +349,18 @@ namespace dlib{
 
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
-					for(size_t i = 0; i < tensors.size(); i++)
-					{
-						// print_tensor(tensors[i], tensors[i]->size());
+					if (this->num_debug) {
+						for (size_t i = 0; i < tensors.size(); i++) {
+							if (tensors[i]->size() != 0)
+                                print_tensor(tensors[i], 10);
+						}
 					}
 
 					for(size_t i = 0; i < tensors.size(); i++)
 					{
 						if(tensors[i]->size() != 0)
 						{
-							// print_tensor(tensors[i], tensors[i]->size());
-							send_tensor(master_conn, tensors[i]);
+							send_compressed_tensor(master_conn, tensors[i]);
 						}
 					}
 
@@ -322,7 +373,7 @@ namespace dlib{
 						if(parameters[i]->size() != 0)
 						{
 							// this->print_tensor(parameters[i], 10);
-							send_tensor(slave, parameters[i]);
+							send_compressed_tensor(slave, parameters[i]);
 						}
 					}
 
@@ -352,7 +403,7 @@ namespace dlib{
 				 ******************************************************/
 				void send_parameters_to_slaves_paralized(std::vector<tensor*> parameters)
 				{
-					std::vector<std::thread *> recievers; 
+					std::vector<std::thread *> recievers;
 					recievers.resize(this->slaves_list.size());
 
 					for(size_t i = 0; i< recievers.size(); i++)
@@ -368,14 +419,17 @@ namespace dlib{
 				}
 
 				/********************************************************************************************************/
-				
+
 				int recieve_tensor(connection* src, tensor* container)
 				{
 					// auto epoch_time = system_clock::now();  // HPZ: Counting
-					
-					char sizeBuf[30];
+
+					char sizeBuf[30] = {0};
+
 					src->read(sizeBuf, 30);
-					std::cout << sizeBuf << std::endl;
+
+					if (this->verbose)
+                        std::cout << sizeBuf << std::endl;
 					size_t length = 0;
 					try{
 						length = atoi(sizeBuf);
@@ -388,13 +442,16 @@ namespace dlib{
 
 					try {
 						if (container->size() != (length / sizeof(*container->begin()))) {
+							std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
 							std::cerr << "Recieving size is not same as container" << std::endl;
+							sleep(100000);
 						}
 					} catch(...) {
 
 					}
 
 					float* tmpBuf = (float*) malloc( sizeof(float));
+					*tmpBuf = 0;
 
 					for(auto j = container->begin(); j != container->end(); j++){
 						src->read((char*)tmpBuf, sizeof(float));
@@ -404,7 +461,7 @@ namespace dlib{
 					send_ack(src, (char*)"got");
 
 					// std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
-					
+
 					return length;
 				}
 
@@ -425,7 +482,9 @@ namespace dlib{
 
 					try {
 						if (container->size() != (length / sizeof(*container->begin()))) {
+							std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
 							std::cerr << "Recieving size is not same as container" << std::endl;
+							sleep(10000000);
 						}
 						if (length == 0) {
 							std::cerr << "Length is invalid" << std::endl;
@@ -435,14 +494,25 @@ namespace dlib{
 
 					}
 
-					std::cout << "f" << std::endl;
 					// Fix-size reading to the "deflated_buffer"
 					char deflated_buffer[length];
 					char* deflated_ptr = &deflated_buffer[0];
 					size_t read_length = length;
+					size_t flag = 0;
 					while (read_length > COMP_BUFFER_SIZE) {
-					    std::cout << read_length << std::endl;
+//					    std::cout << read_length << std::endl;
 						src->read(deflated_ptr, COMP_BUFFER_SIZE);
+
+						if (this->num_debug) {
+							char fuck_num[COMP_BUFFER_SIZE] = {0};
+							std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
+							std::cout << (++flag) << ": ";
+							for(auto i : fuck_num) {
+								std::cout << (int)i;
+							}
+							std::cout << std::endl;
+						}
+
 						deflated_ptr += COMP_BUFFER_SIZE;
 						read_length -= COMP_BUFFER_SIZE;
 					}
@@ -469,6 +539,7 @@ namespace dlib{
 					{
 						if(cli_tensors[slave_index][i].size() != 0)
 						{
+//							this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
 							this->recieve_compressed_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
 
 							// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
@@ -526,7 +597,7 @@ namespace dlib{
 								std::cout << "Reciveing from " << s_c << std::endl;
 								recieve_gradients_from_one(s_c, all_tensors);
 							}
-						}					
+						}
 					}
 				}
 
@@ -534,7 +605,7 @@ namespace dlib{
 				void recieve_gradients_parallism(std::vector<std::vector<resizable_tensor>> &all_tensors)
 				{
 					init_before_recieving(all_tensors);
-					std::vector<std::thread *> recievers; 
+					std::vector<std::thread *> recievers;
 					recievers.resize(all_tensors.size() - 1);
 
 					for(size_t i = 0; i< recievers.size(); i++)
@@ -567,7 +638,7 @@ namespace dlib{
 					for(size_t i = 0; i < updated.size(); i++)
 					{
 						if(updated[i].size() != 0)
-							this->recieve_tensor(master_conn, &updated[i]);
+							this->recieve_compressed_tensor(master_conn, &updated[i]);
 
 						// this->print_tensor(&updated[i], 10);
 
@@ -637,17 +708,21 @@ namespace dlib{
 						recieve_gradients_parallism(all_tensors);
 
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						std::cout << "(Time for recieve_tensor) is "																								//
-							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting 	//
+						if (this->exper)																															//
+                            std::cout << "(Time for recieve_tensor) is "																							//
+                                << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   				 	//
 						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-						for(size_t i = 0; i < all_tensors.size(); i++){
-							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								if(all_tensors[i][j].size() != 0){
-									std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
-									print_tensor(&all_tensors[i][j], 10);
-								}
-							}
+						if (this->num_debug) {
+                            for(size_t i = 0; i < all_tensors.size(); i++){
+                                std::cout << "Gradient from slave " << i << std::endl;
+                                for(size_t j = 0; j < all_tensors[i].size(); j++){
+                                    if(all_tensors[i][j].size() != 0){
+    //									std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
+                                        print_tensor(&all_tensors[i][j], 10);
+                                    }
+                                }
+                            }
 						}
 
 						////////////////////////////////////////////////////
@@ -656,19 +731,21 @@ namespace dlib{
 
 						average(all_tensors);
 
-						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						std::cout << "(Time for average) is "																										  //
-							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
-						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						
+						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						if (this->exper)																																//
+                            std::cout << "(Time for average) is "																										//
+                                << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   	//
+						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-						for(size_t i = 0; i < all_tensors.size(); i++){
-							for(size_t j = 0; j < all_tensors[i].size(); j++){
-								if(all_tensors[i][j].size() != 0){
-									std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
-									print_tensor(&all_tensors[i][j], 10);
-								}
-							}
+
+                        if (this->num_debug) {
+                        	std::cout << "Averaged gradient: " << std::endl;
+                            for (size_t j = 0; j < all_tensors[0].size(); j++) {
+                                if (all_tensors[0][j].size() != 0) {
+//									std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
+                                    print_tensor(&all_tensors[0][j], 10);
+                                }
+                            }
 						}
 
 						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -685,26 +762,27 @@ namespace dlib{
 
 
 
-						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						std::cout << "(Time for update) is "																										  //
-							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
-						epoch_time = system_clock::now();  // HPZ: Counting																							  //
-						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						if (this->exper)																															//
+                            std::cout << "(Time for update) is "																								  	//
+                                << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   					//
+						epoch_time = system_clock::now();  // HPZ: Counting																						  	//
+						//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 						send_parameters_to_slaves_paralized(temp);
 
-						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						std::cout << "(Time for syncback) is "																										  //
-							<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   //
-						epoch_time = system_clock::now();  // HPZ: Counting																							  //
-						////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-						
-						// std::cout << "After" << std::endl;
-						for(size_t i = 0; i < all_tensors.size(); i++)
-						{
-							for(size_t j = 0; j < all_tensors[i].size(); j++)
-							{
-								// print_tensor(&all_tensors[i][j], 10);
+						///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+						if (this->exper)																															 //
+                            std::cout << "(Time for syncback) is "																									 //
+                                << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   					 //
+						epoch_time = system_clock::now();  // HPZ: Counting																							 //
+						///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+				        if (this->num_debug) {
+							for (size_t i = 0; i < all_tensors.size(); i++) {
+								for (size_t j = 0; j < all_tensors[i].size(); j++) {
+//									 print_tensor(&all_tensors[i][j], 10);
+								}
 							}
 						}
 					}else{
@@ -720,11 +798,16 @@ namespace dlib{
 						{
 							// TODO : Deal with 0
 							temp[i] = &updated[i];
+
+							if (this->num_debug) {
+								if (temp[i]->size() != 0)
+									print_tensor(temp[i], 10);
+							}
 						}
 						update(temp);
 					}
 					std::cout << "Sync finished" << std::endl;
-					// sleep(10000);
+//					sleep(1000);
 				}
 
 

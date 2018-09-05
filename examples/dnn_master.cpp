@@ -331,7 +331,7 @@ int main(int argc, char** argv) try
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		// accuracy(net, local_training_images, local_training_labels);
+		accuracy(net, local_training_images, local_training_labels);
 		// accuracy(net, testing_images, testing_labels);
         //
 		
