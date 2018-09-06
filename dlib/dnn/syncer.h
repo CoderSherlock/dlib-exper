@@ -29,7 +29,7 @@
 #include <cstring>
 
 
-#define COMP_BUFFER_SIZE 256
+#define COMP_BUFFER_SIZE 4096
 using std::chrono::system_clock;
 namespace dlib{
 
@@ -71,7 +71,7 @@ namespace dlib{
 				std::vector<slaveStatus>	slave_status;
 
 				int verbose = 0;
-				int num_debug = 1;
+				int num_debug = 0;
 				int exper = 0;
 
 
@@ -305,6 +305,7 @@ namespace dlib{
 					dest->write(tBuf, 30);
 
 					char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
+					std::memset(tmpBuf, '\0', sizeof(float) * tensor->size());
 					float* tmpPtr = (float*)tmpBuf;
 					for(auto j = tensor->begin(); j != tensor->end(); j++)
 					{
@@ -316,20 +317,20 @@ namespace dlib{
 					size_t write_max = sizeof(float) * tensor->size();
 					size_t flag = 0;
 					while(write_length + COMP_BUFFER_SIZE <= write_max) {
-						dest->write(write_Ptr, COMP_BUFFER_SIZE);
+						int size = dest->write(write_Ptr, COMP_BUFFER_SIZE);
 
 						if (this->num_debug) {
-							char fuck_num[COMP_BUFFER_SIZE] = {0};
-							std::memcpy(fuck_num, write_Ptr, COMP_BUFFER_SIZE);
-							std::cout << (++flag) << ": ";
-							for(auto i : fuck_num) {
-								std::cout << (int)i;
-							}
-							std::cout << std::endl;
+                            unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
+                            std::memcpy(fuck_num, write_Ptr, COMP_BUFFER_SIZE);
+                            std::cout << "send " << (++flag) << ": ";
+                            for (auto i : fuck_num) {
+                                std::cout << (int) i << " ";
+                            }
+                            std::cout << "[" << size << "]" << std::endl;
 						}
 
-						write_length += COMP_BUFFER_SIZE;
-						write_Ptr += COMP_BUFFER_SIZE;
+						write_length += size;
+						write_Ptr += size;
 					}
 
 					if (write_length < write_max) {
@@ -496,25 +497,28 @@ namespace dlib{
 
 					// Fix-size reading to the "deflated_buffer"
 					char deflated_buffer[length];
+					memset(deflated_buffer, '\0', length);
 					char* deflated_ptr = &deflated_buffer[0];
 					size_t read_length = length;
 					size_t flag = 0;
 					while (read_length > COMP_BUFFER_SIZE) {
 //					    std::cout << read_length << std::endl;
-						src->read(deflated_ptr, COMP_BUFFER_SIZE);
+						int size = src->read(deflated_ptr, COMP_BUFFER_SIZE);
 
 						if (this->num_debug) {
-							char fuck_num[COMP_BUFFER_SIZE] = {0};
-							std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
-							std::cout << (++flag) << ": ";
-							for(auto i : fuck_num) {
-								std::cout << (int)i;
+							if (size != COMP_BUFFER_SIZE) {
+								unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
+								std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
+								std::cout << "Recv " << (++flag) << ": ";
+								for (auto i : fuck_num) {
+									std::cout << (int) i << " ";
+								}
+								std::cout << "[" << size << "]" << std::endl;
 							}
-							std::cout << std::endl;
 						}
 
-						deflated_ptr += COMP_BUFFER_SIZE;
-						read_length -= COMP_BUFFER_SIZE;
+						deflated_ptr += size;
+						read_length -= size;
 					}
 					if (read_length > 0) {
 						src->read(deflated_ptr, read_length);
