@@ -337,11 +337,19 @@ int main(int argc, char** argv) try
 		
 		if(ismaster)
 		{
-			if (trainer.learning_rate <= 0.001)
-				break;
+			if (trainer.learning_rate <= 0.001) {
+				std::cout << "---------------------------" << std::endl;
+				std::cout << "|Exit because l_rate      |" << std::endl;
+				std::cout << "---------------------------" << std::endl;
+                break;
+            }
 
-			if (epoch >= 60)
+			if (epoch >= 60) {
+				std::cout << "---------------------------" << std::endl;
+				std::cout << "|Exit because 60 epochs   |" << std::endl;
+				std::cout << "---------------------------" << std::endl;
 				break;
+			}
 		}
 
 		

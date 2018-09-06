@@ -62,7 +62,7 @@ namespace dlib
 
     template <
         typename net_type, 
-        typename solver_type = sgd
+        typename solver_type = adam
         >
     class dnn_trainer : private threaded_object
     {
