@@ -38,30 +38,6 @@ void to_exit(int signal)
 }
 
 
-template <
-typename net_type
->
-double accuracy(net_type net, std::vector<matrix<unsigned char>> training_images, std::vector<unsigned long> training_labels){
-	auto epoch_time = system_clock::now();  // HPZ: Counting
-	std::vector<unsigned long> predicted_labels = net(training_images);
-	int num_right = 0;
-	int num_wrong = 0;
-	// And then let's see if it classified them correctly.
-	for (size_t i = 0; i < training_images.size(); ++i)
-	{
-		if (predicted_labels[i] == training_labels[i])
-			++num_right;
-		else
-			++num_wrong;
-
-	}
-	cout << "testing num_right: " << num_right << endl;
-	cout << "testing num_wrong: " << num_wrong << endl;
-	cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
-	std::cout << "Time for Validation is " 
-			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
-	return num_right/(double)(num_right+num_wrong);
-}
 
 int main(int argc, char** argv) try
 {
@@ -78,7 +54,7 @@ int main(int argc, char** argv) try
 
 
 	int ismaster = 0;
-	char* dataset;
+	char* data_path;
 	device me;
 	device master;
 	int slave_number;
@@ -110,8 +86,8 @@ int main(int argc, char** argv) try
 
 	for(int i =1; i < argc; i++){
 		if(strcmp(argv[i], "-d")==0){
-			dataset = argv[i+1];
-			std::cout << "Dataset:\t" << dataset << std::endl;
+			data_path = argv[i+1];
+			std::cout << "Dataset:\t" << data_path << std::endl;
 		}
 
 		// Get slaves ip and port if is master
@@ -138,47 +114,10 @@ int main(int argc, char** argv) try
 		}
 	}
 
-
-
-
-
-
-
-	// MNIST is broken into two parts, a training set of 60000 images and a test set of
-	// 10000 images.  Each image is labeled so that we know what hand written digit is
-	// depicted.  These next statements load the dataset into memory.
-	std::vector<matrix<unsigned char>> training_images;
-	std::vector<unsigned long>         training_labels;
-	std::vector<matrix<unsigned char>> testing_images;
-	std::vector<unsigned long>         testing_labels;
-	load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
-
-
-	training_images.erase(training_images.begin() + 1000, training_images.end());
-	training_labels.erase(training_labels.begin() + 1000, training_labels.end());
-
-	std::vector<matrix<unsigned char>> local_training_images;
-	std::vector<unsigned long>         local_training_labels;
-	std::vector<matrix<unsigned char>> local_testing_images;
-	std::vector<unsigned long>         local_testing_labels;
-
-	local_training_images = training_images;
-	local_training_labels = training_labels;
-	local_testing_images = testing_images;
-	local_testing_labels = testing_labels;
-
-	int group_size = local_training_images.size() / (slave_number + 1);
-	local_training_images.erase(local_training_images.begin(), \
-			local_training_images.begin() + me.number * group_size);
-	local_training_images.erase(local_training_images.begin() + group_size, \
-			local_training_images.end());
-	local_training_labels.erase(local_training_labels.begin(), \
-			local_training_labels.begin() + me.number * group_size);
-	local_training_labels.erase(local_training_labels.begin() + group_size, \
-			local_training_labels.end());
-
-
-	std::cout << local_training_images.size() << std::endl;
+	dataset<matrix<unsigned char>, unsigned long> training(load_mnist_training_data, data_path);
+	dataset<matrix<unsigned char>, unsigned long> testing(load_mnist_testing_data, data_path);
+	training = training.split(0, 1000);
+	testing = testing.split(0, 1000);
 
 
 	// std::cout << training_images.size() << std::endl;
@@ -333,7 +272,7 @@ int main(int argc, char** argv) try
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		accuracy(net, local_training_images, local_training_labels);
+		training.accuracy(net);
 		// accuracy(net, testing_images, testing_labels);
         //
 		
@@ -358,8 +297,8 @@ int main(int argc, char** argv) try
 	}
 	// trainer.train(training_images, training_labels);
 
-	accuracy(net, local_training_images, local_training_labels);
-	accuracy(net, testing_images, testing_labels);
+	training.accuracy(net);
+	testing.accuracy(net);
 	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
 

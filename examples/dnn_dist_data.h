@@ -46,8 +46,8 @@ public:
 		this->datas = d;
 		this->labels = l;
 	}
-	dataset (void (*function)(char*)){
-
+	dataset (int (*function)(char*, std::vector<data_type>&, std::vector<label_type>&), char *filename){
+		function(filename, this->datas, this->labels);
 	}
 
 	dataset split(size_t start, size_t end) {
@@ -61,13 +61,13 @@ public:
 		child_labels.erase(child_labels.begin() + end - start, child_labels.end());
 
 		if (verbose)
-            std::cout << "Dataset size is" << child_datas.size() << std::endl;
+			std::cout << "Dataset size is" << child_datas.size() << std::endl;
 
 		return dataset<data_type, label_type>(child_datas, child_labels);
 	}
 
 	dataset split_by_group(size_t groups, size_t index) {
-	    size_t group_size = this->datas.size() / groups;
+		size_t group_size = this->datas.size() / groups;
 
 		std::vector<data_type> child_datas = this->datas;
 		std::vector<label_type> child_labels = this->labels;
@@ -80,29 +80,64 @@ public:
 		return dataset<data_type, label_type>(child_datas, child_labels);
 	}
 
+	template <
+			typename net_type
+	>
+	double accuracy(net_type net){
+		auto epoch_time = system_clock::now();  // HPZ: Counting
+		std::vector<label_type> predicted_labels = net(this->datas);
+		int num_right = 0;
+		int num_wrong = 0;
+		// And then let's see if it classified them correctly.
+		for (size_t i = 0; i < this->datas.size(); ++i)
+		{
+			if (predicted_labels[i] == this->labels[i])
+				++num_right;
+			else
+				++num_wrong;
+		}
+		cout << "testing num_right: " << num_right << endl;
+		cout << "testing num_wrong: " << num_wrong << endl;
+		cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
+		std::cout << "Time for Validation is "
+				  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
+		return num_right/(double)(num_right+num_wrong);
+	}
+
 };
 
-int load_mnist_training_data(char* dataset) {
-	// MNIST is broken into two parts, a training set of 60000 images and a test set of
-	// 10000 images.  Each image is labeled so that we know what hand written digit is
-	// depicted.  These next statements load the dataset into memory.
-	std::vector<matrix<unsigned char>> training_images;
-	std::vector<unsigned long>         training_labels;
-	std::vector<matrix<unsigned char>> testing_images;
-	std::vector<unsigned long>         testing_labels;
-	load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
+int load_mnist_training_data(char* dataset, std::vector<matrix<unsigned char>> &data, std::vector<unsigned long> &label) {
+	try{
+		std::vector<matrix < unsigned char>> training_images;
+		std::vector<unsigned long> training_labels;
+		std::vector<matrix < unsigned char>> testing_images;
+		std::vector<unsigned long> testing_labels;
+		load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
 
-}
+		data = training_images;
+		label = training_labels;
+	} catch(...) {
+		std::cerr << "Something wrong with loading training data and labels"	<< std::endl;
+		return 0;
+	}
+	return 1;
 
-int load_mnist_testing_data(char* dataset) {
-	// MNIST is broken into two parts, a training set of 60000 images and a test set of
-	// 10000 images.  Each image is labeled so that we know what hand written digit is
-	// depicted.  These next statements load the dataset into memory.
-	std::vector<matrix<unsigned char>> training_images;
-	std::vector<unsigned long>         training_labels;
-	std::vector<matrix<unsigned char>> testing_images;
-	std::vector<unsigned long>         testing_labels;
-	load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
+};
 
-}
+int load_mnist_testing_data(char* dataset, std::vector<matrix<unsigned char>> &data, std::vector<unsigned long> &label) {
+    try{
+        std::vector<matrix < unsigned char>> training_images;
+        std::vector<unsigned long> training_labels;
+        std::vector<matrix < unsigned char>> testing_images;
+        std::vector<unsigned long> testing_labels;
+        load_mnist_dataset(dataset, training_images, training_labels, testing_images, testing_labels);
+
+        data = testing_images;
+        label = testing_labels;
+    } catch(...) {
+        std::cerr << "Something wrong with loading testing data and labels"	<< std::endl;
+        return 0;
+    }
+    return 1;
+};
 
