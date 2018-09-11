@@ -262,7 +262,7 @@ int main(int argc, char** argv) try
 		syncer.init_slaves();
 
 		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
-		syncer.get_slaves_status();
+		syncer.print_slaves_status();
 	}
 	else{
 		// TODO: Wait for master connect
@@ -308,7 +308,7 @@ int main(int argc, char** argv) try
 		// accuracy(net, testing_images, testing_labels);
 
 		auto sync_time = system_clock::now();  // HPZ: Counting
-		syncer.sync();
+		syncer.sn_sync();
 		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - sync_time).count() << std::endl;   // HPZ: Counting
 
 		while(trainer.status_lock.trylock() == 0);

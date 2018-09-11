@@ -155,7 +155,11 @@ namespace dlib{
 						}
 				}
 
-				void get_slaves_status(){
+				/*
+				 *	Print out all slaves' status, including(ip, port, connection pointer and connection status)
+				 *	void(*)
+				 */
+				void print_slaves_status(){
 					DLIB_CASSERT(ismaster == 1, "Slave deivce doesn't have the right to get slaves' status.")
 
 						for(int i = 0; i < this->slaves_list.size(); i++ ){
@@ -560,35 +564,18 @@ namespace dlib{
 					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
 					// Initialize temporary gradients contrainer from all other devices
-					all_tensors.resize(slave_status.size() + 1);
+					all_tensors.resize(slave_status.size());
 					for(size_t i = 0; i < all_tensors.size(); i++){
 						all_tensors[i].resize(this->trainer->num_computational_layers);
 						for(size_t j = 0; j < all_tensors[i].size(); j++){
-
-							if(i != (all_tensors.size()-1))
-							{
-								// Set size of tensors to slaves
-								if(slave_status[i] == slaveStatus::Running)
-									all_tensors[i][j].copy_size(*tensors[j]);
-							}
-							else
-							{
-								// Set master
-								all_tensors[i][j].copy_size(*tensors[j]);
-							}
+                            if(slave_status[i] == slaveStatus::Running)
+                                all_tensors[i][j].copy_size(*tensors[j]);
 						}
 					}
-
-					// Fill the container with currect device value
-					for(size_t i = 0; i < tensors.size(); i ++){
-						all_tensors[all_tensors.size() - 1][i] = *tensors[i];
-					}
-
 				}
 
 				void recieve_gradients_serialism(std::vector<std::vector<resizable_tensor>> &all_tensors)
 				{
-
 					init_before_recieving(all_tensors);
 
 					// Get gradients if there exists slave machine
@@ -610,7 +597,7 @@ namespace dlib{
 				{
 					init_before_recieving(all_tensors);
 					std::vector<std::thread *> recievers;
-					recievers.resize(all_tensors.size() - 1);
+					recievers.resize(all_tensors.size());
 
 					for(size_t i = 0; i< recievers.size(); i++)
 					{
@@ -649,7 +636,8 @@ namespace dlib{
 					}
 				}
 
-				void average(std::vector<std::vector<resizable_tensor>> &all_tensors){
+				void average(std::vector<std::vector<resizable_tensor>> &all_tensors)
+				{
 					std::vector<std::vector<tensor*>> accessible_groups;
 					float scale = 1.0 / all_tensors.size();
 					for(size_t i = 0; i < this->trainer->num_computational_layers; i++)
@@ -693,14 +681,13 @@ namespace dlib{
 					}
 				}
 
-				void sync(){
+				void sn_sync_1(){
 
 					// this->trainer->wait_for_thread_to_pause();
 
 					if(ismaster){
 
 						std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
-
 
 						std::vector<std::vector<resizable_tensor>> all_tensors;
 
@@ -814,6 +801,121 @@ namespace dlib{
 //					sleep(1000);
 				}
 
+                void sn_sync(){
+                    if(ismaster){
+
+                        std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
+
+                        std::vector<std::vector<resizable_tensor>> all_tensors;
+
+                        ////////////////////////////////////////////////////////////
+                        auto epoch_time = system_clock::now();  // HPZ: Counting
+                        ////////////////////////////////////////////////////////////
+
+                        // recieve_gradients_serialism(all_tensors);
+                        recieve_gradients_parallism(all_tensors);
+
+                        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        if (this->exper)																															//
+                            std::cout << "(Time for recieve_tensor) is "																							//
+                                      << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   				 	//
+                        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                        if (this->num_debug) {
+                            for(size_t i = 0; i < all_tensors.size(); i++){
+                                std::cout << "Gradient from slave " << i << std::endl;
+                                for(size_t j = 0; j < all_tensors[i].size(); j++){
+                                    if(all_tensors[i][j].size() != 0){
+                                        //	std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
+                                        print_tensor(&all_tensors[i][j], 10);
+                                    }
+                                }
+                            }
+                        }
+
+                        ////////////////////////////////////////////////////
+                        epoch_time = system_clock::now();  // HPZ: Counting
+                        ////////////////////////////////////////////////////
+
+                        average(all_tensors);
+
+                        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        if (this->exper)																																//
+                            std::cout << "(Time for average) is "																										//
+                                      << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting   	//
+                        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+                        if (this->num_debug) {
+                            std::cout << "Averaged gradient: " << std::endl;
+                            for (size_t j = 0; j < all_tensors[0].size(); j++) {
+                                if (all_tensors[0][j].size() != 0) {
+    //									std::cout << "---(" << i << "," << j << "):\t" << stat_tensor(&all_tensors[i][j]) << std::endl;
+                                    print_tensor(&all_tensors[0][j], 10);
+                                }
+                            }
+                        }
+
+                        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        epoch_time = system_clock::now();  // HPZ: Counting																							  //
+                        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                        std::vector<tensor*> temp(this->trainer->num_computational_layers);
+                        for(size_t i = 0; i < temp.size(); i++)
+                        {
+                            // TODO : Deal with 0
+                            temp[i] = &all_tensors[0][i];
+                        }
+
+
+
+                        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        if (this->exper)																															//
+                            std::cout << "(Time for update) is "																								  	//
+                                      << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   					//
+                        epoch_time = system_clock::now();  // HPZ: Counting																						  	//
+                        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                        send_parameters_to_slaves_paralized(temp);
+
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        if (this->exper)																															 //
+                            std::cout << "(Time for syncback) is "																									 //
+                                      << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   					 //
+                        epoch_time = system_clock::now();  // HPZ: Counting																							 //
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                        if (this->num_debug) {
+                            for (size_t i = 0; i < all_tensors.size(); i++) {
+                                for (size_t j = 0; j < all_tensors[i].size(); j++) {
+    //									 print_tensor(&all_tensors[i][j], 10);
+                                }
+                            }
+                        }
+                    }else{
+
+                        std::vector<resizable_tensor> updated;
+
+                        send_gradients_to_master();
+
+                        recieve_updated_parameters(updated);
+
+                        std::vector<tensor*> temp(this->trainer->num_computational_layers);
+                        for(size_t i = 0; i < temp.size(); i++)
+                        {
+                            // TODO : Deal with 0
+                            temp[i] = &updated[i];
+
+                            if (this->num_debug) {
+                                if (temp[i]->size() != 0)
+                                    print_tensor(temp[i], 10);
+                            }
+                        }
+                        update(temp);
+                    }
+                    std::cout << "Sync finished" << std::endl;
+    //					sleep(1000);
+                }
 
 
 				// TODO
