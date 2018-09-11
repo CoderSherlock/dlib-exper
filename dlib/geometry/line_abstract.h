@@ -3,6 +3,9 @@
 #undef DLIB_LInE_ABSTRACT_H_
 #ifdef DLIB_LInE_ABSTRACT_H_
 
+#include "../vector_abstract.h"
+#include <vector>
+
 namespace dlib
 {
 
@@ -23,7 +26,7 @@ namespace dlib
         );
         /*!
             ensures
-                - p1(), p2, and normal() are all the 0 vector.
+                - p1(), p2(), and normal() are all the 0 vector.
         !*/
 
         line(
@@ -35,7 +38,8 @@ namespace dlib
                 - #p1() == a
                 - #p2() == b
                 - #normal() == A vector normal to the line passing through points a and b.
-                  In particular, it is given by: (a-b).cross(dlib::vector<double,3>(0,0,1)).normalize()
+                  In particular, it is given by: (a-b).cross(dlib::vector<double,3>(0,0,1)).normalize().
+                  Therefore, the normal vector is the vector (a-b) but unit normalized and rotated clockwise 90 degrees.
         !*/
 
         template <typename T>
@@ -143,6 +147,18 @@ namespace dlib
 
 // ----------------------------------------------------------------------------------------
 
+    double angle_between_lines (
+        const line& a,
+        const line& b
+    );
+    /*!
+        ensures
+            - returns the angle, in degrees, between the given lines.  This is a number in
+              the range [0 90].
+    !*/
+
+// ----------------------------------------------------------------------------------------
+
     template <typename T>
     dpoint intersect(
         const std::pair<vector<T,2>,vector<T,2>>& a,
@@ -160,12 +176,18 @@ namespace dlib
         const line& l,
         const dpoint& reference_point,
         const std::vector<vector<T,2>>& pts,
-        const double& dist_thresh
+        const double& dist_thresh_min = 0,
+        const double& dist_thresh_max = std::numeric_limits<double>::infinity()
     );
     /*!
         ensures
-            - Returns a count of how many points in pts are on the same side of l as
-              reference_point, but also no more than dist_thresh distance from the line.
+            - Returns a count of how many points in pts have a distance from the line l
+              that is in the range [dist_thresh_min, dist_thresh_max].  This distance is a
+              signed value that indicates how far a point is from the line. Moreover, if
+              the point is on the same side as reference_point then the distance is
+              positive, otherwise it is negative.  So for example, If this range is [0,
+              infinity] then this function counts how many points are on the same side of l
+              as reference_point.
     !*/
 
 // ----------------------------------------------------------------------------------------
@@ -184,6 +206,32 @@ namespace dlib
               regions, we identify the region of interest as the one that contains the
               reference_point.  Therefore, this function counts the number of points in pts
               that appear in the same region as reference_point.
+    !*/
+
+// ----------------------------------------------------------------------------------------
+
+    struct no_convex_quadrilateral : dlib::error
+    {
+        /*!
+            WHAT THIS OBJECT REPRESENTS
+                This is the exception thrown by find_convex_quadrilateral() if the inputs
+                can't form a convex quadrilateral.
+        !*/
+        no_convex_quadrilateral(
+        ) : dlib::error("Lines given to find_convex_quadrilateral() don't form any convex quadrilateral.") 
+        {}
+    };
+
+    std::array<dpoint,4> find_convex_quadrilateral (
+        const std::array<line,4>& lines
+    );
+    /*!
+        ensures
+            - Is there a set of 4 points, made up of the intersections of the given lines,
+              that forms a convex quadrilateral?  If yes then this routine returns those 4
+              points and if not throws no_convex_quadrilateral.
+        throws
+            - no_convex_quadrilateral
     !*/
 
 // ----------------------------------------------------------------------------------------

@@ -1,12 +1,11 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 
-set(USE_SSE4_INSTRUCTIONS ON CACHE BOOL "Use SSE4 instructions")
-
-# Set this to disable link time optimization. The only reason for
-# doing this to make the compile faster which is nice when developing
-# new modules.
-#set(PYBIND11_LTO_CXX_FLAGS "")
+# Pybind11's cmake scripts enable link time optimization by default.  However,
+# it makes linking take a really long time and doesn't seem to substantively
+# improve runtime performance.  So we disable LTO here to make building dlib
+# faster.
+set(PYBIND11_LTO_CXX_FLAGS "")
 
 
 # Avoid cmake warnings about changes in behavior of some Mac OS X path 
@@ -18,32 +17,19 @@ endif()
 
 # To avoid dll hell, always link everything statically when compiling in
 # visual studio.  This way, the resulting library won't depend on a bunch
-# of other dll files and can be safely copied to someone elese's computer
+# of other dll files and can be safely copied to someone else's computer
 # and expected to run.
 if (MSVC)
     include(${CMAKE_CURRENT_LIST_DIR}/../../dlib/cmake_utils/tell_visual_studio_to_use_static_runtime.cmake)
 endif()
 
-add_subdirectory(../../dlib/external/pybind11 ./pybind11_build)
-add_subdirectory(../../dlib ./dlib_build)
+add_subdirectory(../../dlib/external/pybind11 pybind11_build)
+add_subdirectory(../../dlib dlib_build)
 
 if (USING_OLD_VISUAL_STUDIO_COMPILER)
-   message(FATAL_ERROR "You have to use a version of Visual Studio that supports C++11.  As of December 2017, the only versions that have good enough C++11 support to compile the dlib Pyhton API is a fully updated Visual Studio 2015 or a fully updated Visual Studio 2017.  Older versions of either of these compilers have bad C++11 support and will fail to compile the Python extension. ***SO UPDATE YOUR VISUAL STUDIO TO MAKE THIS ERROR GO AWAY***")
+   message(FATAL_ERROR "You have to use a version of Visual Studio that supports C++11.  As of December 2017, the only versions that have good enough C++11 support to compile the dlib Python API is a fully updated Visual Studio 2015 or a fully updated Visual Studio 2017.  Older versions of either of these compilers have bad C++11 support and will fail to compile the Python extension. ***SO UPDATE YOUR VISUAL STUDIO TO MAKE THIS ERROR GO AWAY***")
 endif()
 
-
-# Test for numpy
-find_package(PythonInterp)
-if(PYTHONINTERP_FOUND)
-   execute_process( COMMAND ${PYTHON_EXECUTABLE} -c "import numpy" OUTPUT_QUIET ERROR_QUIET RESULT_VARIABLE NUMPYRC)
-   if(NUMPYRC EQUAL 1)
-      message(WARNING "Numpy not found. Functions that return numpy arrays will not work without Numpy installed!")
-   else()
-      message(STATUS "Found Python with installed numpy package")
-   endif()
-else()
-   message(WARNING "Numpy not found. Functions that return numpy arrays will not work without Numpy installed!")
-endif()
 
 add_definitions(-DDLIB_VERSION=${DLIB_VERSION})
 
@@ -61,6 +47,9 @@ set(python_srcs
    src/sequence_segmenter.cpp
    src/svm_struct.cpp
    src/image.cpp
+   src/image2.cpp
+   src/image3.cpp
+   src/image4.cpp
    src/rectangles.cpp
    src/object_detection.cpp
    src/shape_predictor.cpp
@@ -70,6 +59,7 @@ set(python_srcs
    src/global_optimization.cpp
    src/image_dataset_metadata.cpp
    src/numpy_returns.cpp
+   src/line.cpp
 )
 
 # Only add the GUI module if requested

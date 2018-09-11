@@ -14,6 +14,7 @@
 #include "../interfaces/enumerable.h"
 #include "style_abstract.h"
 #include "../image_processing/full_object_detection_abstract.h"
+#include "../geometry/line_abstract.h"
 
 namespace dlib
 {
@@ -2488,8 +2489,8 @@ namespace dlib
                     its two end points (p1 and p2) as well as a color.
             !*/
 
-            point p1;
-            point p2;
+            dpoint p1;
+            dpoint p2;
             rgb_alpha_pixel color;
 
             overlay_line(
@@ -2503,8 +2504,8 @@ namespace dlib
 
             template <typename pixel_type>
             overlay_line(
-                const point& p1_,
-                const point& p2_,
+                const dpoint& p1_,
+                const dpoint& p2_,
                 pixel_type p
             ); 
             /*!
@@ -3017,6 +3018,16 @@ namespace dlib
             ensures
                 - adds the given overlay line into this object such
                   that it will be displayed. 
+        !*/
+
+        template <typename pixel_type>
+        void add_overlay(
+            const line& l, 
+            pixel_type p
+        );
+        /*!
+            ensures
+                - performs: add_overlay(overlay_line(l.p1(),l.p2(),p)); 
         !*/
 
         void add_overlay (
