@@ -65,8 +65,8 @@ namespace dlib
                 - returns size()
         !*/
 
-        std::pair<point, point> get_line (
-            const point& p
+        std::pair<dpoint, dpoint> get_line (
+            const dpoint& p
         ) const;
         /*!
             requires
@@ -79,7 +79,7 @@ namespace dlib
         !*/
 
         double get_line_angle_in_degrees (
-            const point& p 
+            const dpoint& p 
         ) const;
         /*!
             requires
@@ -91,7 +91,7 @@ namespace dlib
         !*/
 
         void get_line_properties (
-            const point& p,
+            const dpoint& p,
             double& angle_in_degrees,
             double& radius
         ) const;
@@ -107,6 +107,10 @@ namespace dlib
                 - #radius == the distance from the center of the input image, measured in
                   pixels, and the line corresponding to the Hough transform point p.
                   Moreover: -sqrt(size()*size()/2) <= #radius <= sqrt(size()*size()/2)
+                - Note that the line properties are calculated to sub-pixel accuracy.  That
+                  is, p doesn't have to contain integer values, it can reference locations
+                  between pixels and the appropriate calculation will be done to find the
+                  corresponding line.
         !*/
 
         template <
@@ -224,23 +228,25 @@ namespace dlib
                   Hough transform using operator(), then find the lines you are interested
                   in, and then call find_pixels_voting_for_lines() to determine which
                   pixels in the input image belong to those lines.
-                - This routine returns a vector, call the returned vector CONSTITUENT_POINTS.
-                  It has the following properties:
-                - #CONSTITUENT_POINTS.size() == hough_points.size()
-                - for all valid i:
-                    - Let HP[i] = centered_rect(hough_points[i], angle_window_size, radius_window_size)
-                    - Any point in img with a non-zero value that lies on a line
-                      corresponding to one of the Hough points in HP[i] is added to
-                      CONSTITUENT_POINTS[i].  Therefore, when this routine finishes,
-                      #CONSTITUENT_POINTS[i] will contain all the points in img that voted
-                      for the lines associated with the Hough accumulator bins in HP[i].
-                    - #CONSTITUENT_POINTS[i].size() == the number of points in img that
-                      voted for any of the lines HP[i] in Hough space.  Note, however, that if
-                      angle_window_size or radius_window_size are made so large that HP[i]
-                      overlaps HP[j] for i!=j then the overlapping regions of Hough space
-                      are assign to HP[i] or HP[j] arbitrarily.  Therefore, all points in
-                      CONSTITUENT_POINTS are unique, that is, there is no overlap in points
-                      between any element of CONSTITUENT_POINTS.
+                - This routine returns a vector, CONSTITUENT_POINTS, with the following
+                  properties:
+                    - #CONSTITUENT_POINTS.size() == hough_points.size()
+                    - for all valid i:
+                        - Let HP[i] = centered_rect(hough_points[i], angle_window_size, radius_window_size)
+                        - Any point in img with a non-zero value that lies on a line
+                          corresponding to one of the Hough points in HP[i] is added to
+                          CONSTITUENT_POINTS[i].  Therefore, when this routine finishes,
+                          #CONSTITUENT_POINTS[i] will contain all the points in img that
+                          voted for the lines associated with the Hough accumulator bins in
+                          HP[i].
+                        - #CONSTITUENT_POINTS[i].size() == the number of points in img that
+                          voted for any of the lines HP[i] in Hough space.  Note, however,
+                          that if angle_window_size or radius_window_size are made so large
+                          that HP[i] overlaps HP[j] for i!=j then the overlapping regions
+                          of Hough space are assigned to HP[i] or HP[j] arbitrarily.
+                          That is, we treat HP[i] and HP[j] as disjoint even if their boxes
+                          overlap.  In this case, the overlapping region is assigned to
+                          either HP[i] or HP[j] in an arbitrary manner.
         !*/
 
         template <
@@ -297,7 +303,9 @@ namespace dlib
                   within angle_nms_thresh degrees of a stronger line or within
                   radius_nms_thresh distance (in terms of radius as defined by
                   get_line_properties()) to a stronger Hough point.
-                - The identified lines is returned as a list of coordinates in himg.
+                - The identified lines are returned as a list of coordinates in himg.
+                - The returned points are sorted so that points with larger Hough transform
+                  values come first.
         !*/
 
         template <

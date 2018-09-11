@@ -68,12 +68,12 @@ namespace dlib
         long nc(
         ) const { return _size; }
 
-        std::pair<point, point> get_line (
-            const point& p
+        std::pair<dpoint, dpoint> get_line (
+            const dpoint& p
         ) const
         {
             DLIB_ASSERT(rectangle(0,0,size()-1,size()-1).contains(p) == true,
-                "\t pair<point,point> hough_transform::get_line(point)"
+                "\t pair<dpoint,dpoint> hough_transform::get_line(dpoint)"
                 << "\n\t Invalid arguments given to this function."
                 << "\n\t p:      " << p 
                 << "\n\t size(): " << size()
@@ -90,8 +90,8 @@ namespace dlib
             const dpoint cent = center(box);
             dpoint v1 = cent + dpoint(size()+1000,0) + dpoint(0,radius);
             dpoint v2 = cent - dpoint(size()+1000,0) + dpoint(0,radius);
-            point p1 = rotate_point(cent, v1, theta);
-            point p2 = rotate_point(cent, v2, theta);
+            dpoint p1 = rotate_point(cent, v1, theta);
+            dpoint p2 = rotate_point(cent, v2, theta);
 
             clip_line_to_rectangle(box, p1, p2);
 
@@ -99,7 +99,7 @@ namespace dlib
         }
 
         double get_line_angle_in_degrees (
-            const point& p 
+            const dpoint& p 
         ) const
         {
             double angle, radius;
@@ -108,7 +108,7 @@ namespace dlib
         }
 
         void get_line_properties (
-            const point& p,
+            const dpoint& p,
             double& angle_in_degrees,
             double& radius
         ) const
@@ -365,7 +365,11 @@ namespace dlib
             {
                 auto idx = hmap(hough_point.y(), hough_point.x());
                 if (idx < constituent_points.size())
-                    constituent_points[idx].push_back(img_point);
+                {
+                    // don't add img_point if it's already in the list.
+                    if (constituent_points[idx].size() == 0 || constituent_points[idx].back() != img_point)
+                        constituent_points[idx].push_back(img_point);
+                }
             };
 
             perform_generic_hough_transform(img, box, record_hit);

@@ -454,6 +454,20 @@ namespace dlib
 
 // ----------------------------------------------------------------------------------------
 
+    inline std::vector<rectangle> centered_rects (
+        const std::vector<point>& pts,
+        unsigned long width,
+        unsigned long height
+    );
+    /*!
+        ensures
+            - returns an array ARR where:
+                - #ARR.size() == pts.size()
+                - #ARR[i] == centered_rect(pts[i], width, height)
+    !*/
+
+// ----------------------------------------------------------------------------------------
+
     const rectangle centered_rect (
         long x,
         long y,
@@ -709,9 +723,10 @@ namespace dlib
 
 // ----------------------------------------------------------------------------------------
 
-    inline const point nearest_point (
+    template <typename T>
+    inline const dlib::vector<T,2> nearest_point (
         const rectangle& rect,
-        const point& p
+        const dlib::vector<T,2>& p
     );
     /*!
         ensures
@@ -750,10 +765,11 @@ namespace dlib
 
 // ----------------------------------------------------------------------------------------
 
+    template <typename T>
     void clip_line_to_rectangle (
         const rectangle& box,
-        point& p1,
-        point& p2
+        dlib::vector<T,2>& p1,
+        dlib::vector<T,2>& p2
     );
     /*!
         ensures
