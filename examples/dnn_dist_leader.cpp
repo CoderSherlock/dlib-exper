@@ -77,7 +77,7 @@ int main(int argc, char** argv) try
 
 	// Print self information
 	std::cout << "Local Machine info:\n";
-	std::cout << (ismaster?"master":"slave") << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
+	std::cout << "master" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
 
 	for(int i =1; i < argc; i++) {
 		if(strcmp(argv[i], "-d")==0){
@@ -149,6 +149,9 @@ int main(int argc, char** argv) try
 
 	int epoch = 0, batch = 0;
 	int mark = 0;
+	/*
+	 *	Record Overall time
+	 */
 	auto time = 0;
 	while(1){
 		mark += 1;
@@ -164,8 +167,7 @@ int main(int argc, char** argv) try
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		training.accuracy(net);
-		// accuracy(net, testing_images, testing_labels);
+		testing.accuracy(net);
         //
 		
 		if(ismaster)
@@ -187,7 +189,6 @@ int main(int argc, char** argv) try
 
 		
 	}
-	// trainer.train(training_images, training_labels);
 
 	training.accuracy(net);
 	testing.accuracy(net);

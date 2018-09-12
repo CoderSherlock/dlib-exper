@@ -50,6 +50,14 @@ public:
 		function(filename, this->datas, this->labels);
 	}
 
+	std::vector<data_type> getData() {
+		return this->datas;
+	}
+
+	std::vector<label_type> getLabel() {
+		return this->labels;
+	}
+
 	dataset split(size_t start, size_t end) {
 
 		std::vector<data_type> child_datas = this->datas;

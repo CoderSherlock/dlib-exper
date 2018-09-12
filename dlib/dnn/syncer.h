@@ -71,7 +71,7 @@ namespace dlib{
 				std::vector<slaveStatus>	slave_status;
 
 				int verbose = 0;
-				int num_debug = 0;
+				int num_debug = 1;
 				int exper = 0;
 
 
