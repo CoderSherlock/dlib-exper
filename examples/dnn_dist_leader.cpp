@@ -167,7 +167,7 @@ int main(int argc, char** argv) try
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		testing.accuracy(net);
+		// testing.accuracy(net);
         //
 		
 		if(ismaster)
