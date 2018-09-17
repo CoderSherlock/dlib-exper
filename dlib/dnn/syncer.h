@@ -71,7 +71,7 @@ namespace dlib{
 				std::vector<slaveStatus>	slave_status;
 
 				int verbose = 0;
-				int num_debug = 0;
+				int num_debug = 1;
 				int exper = 0;
 
 
@@ -489,7 +489,7 @@ namespace dlib{
 						if (container->size() != (length / sizeof(*container->begin()))) {
 							std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
 							std::cerr << "Recieving size is not same as container" << std::endl;
-							sleep(10000000);
+							// sleep(10000000);
 						}
 						if (length == 0) {
 							std::cerr << "Length is invalid" << std::endl;
