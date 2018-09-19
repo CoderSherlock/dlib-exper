@@ -145,6 +145,12 @@ int main(int argc, char** argv) try
 	// HPZ: Manually check if any problems happened in the init
 	sleep((unsigned int) 0);
 
+	trainer.synchronization_status = 0;
+	trainer.train_one_batch(training.getData(), training.getLabel());
+	while(trainer.synchronization_status != 1) {asm("");}//std::cout<<"wait to sync" << std::endl;}
+	trainer.synchronization_status = 2;
+	while(trainer.synchronization_status != 3) {}
+
 	// std::cout << syncer << std::endl;
 
 	int epoch = 0, batch = 0;

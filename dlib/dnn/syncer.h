@@ -327,9 +327,9 @@ namespace dlib{
                             unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
                             std::memcpy(fuck_num, write_Ptr, COMP_BUFFER_SIZE);
                             std::cout << "send " << (++flag) << ": ";
-                            for (auto i : fuck_num) {
-                                std::cout << (int) i << " ";
-                            }
+                            // for (auto i : fuck_num) {
+                            //     std::cout << (int) i << " ";
+                            // }
                             std::cout << "[" << size << "]" << std::endl;
 						}
 
@@ -363,6 +363,7 @@ namespace dlib{
 
 					for(size_t i = 0; i < tensors.size(); i++)
 					{
+						std::cout << i << " " << tensors[i]->size() << std::endl;
 						if(tensors[i]->size() != 0)
 						{
 							send_compressed_tensor(master_conn, tensors[i]);
@@ -514,9 +515,9 @@ namespace dlib{
 								unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
 								std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
 								std::cout << "Recv " << (++flag) << ": ";
-								for (auto i : fuck_num) {
-									std::cout << (int) i << " ";
-								}
+								// for (auto i : fuck_num) {
+								//     std::cout << (int) i << " ";
+								// }
 								std::cout << "[" << size << "]" << std::endl;
 							}
 						}
@@ -561,15 +562,18 @@ namespace dlib{
 					// Get the pointer of gradients from current device
 					std::vector<tensor*> tensors;
 					tensors.resize(this->trainer->num_computational_layers);
-					visit_layer_parameter_gradients(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
+					visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){tensors[i] = &t;});
 
 					// Initialize temporary gradients contrainer from all other devices
 					all_tensors.resize(slave_status.size());
 					for(size_t i = 0; i < all_tensors.size(); i++){
 						all_tensors[i].resize(this->trainer->num_computational_layers);
+						std::cout << "layers:" << this->trainer->num_computational_layers << std::endl;
 						for(size_t j = 0; j < all_tensors[i].size(); j++){
-                            if(slave_status[i] == slaveStatus::Running)
+                            if(slave_status[i] == slaveStatus::Running) {
+								std::cout<<"layer size:" << tensors[j]->size() << std::endl;
                                 all_tensors[i][j].copy_size(*tensors[j]);
+							}
 						}
 					}
 				}
