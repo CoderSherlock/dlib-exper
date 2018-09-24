@@ -135,7 +135,6 @@ int main(int argc, char** argv) try
 		syncer.add_slave(slave_list[i]);
 	}
 
-	syncer.init_slaves();
 
 	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
 	syncer.print_slaves_status();
@@ -150,6 +149,8 @@ int main(int argc, char** argv) try
 	while(trainer.synchronization_status != 1) {asm("");}//std::cout<<"wait to sync" << std::endl;}
 	trainer.synchronization_status = 2;
 	while(trainer.synchronization_status != 3) {}
+
+	syncer.init_slaves();
 
 	// std::cout << syncer << std::endl;
 
@@ -192,8 +193,6 @@ int main(int argc, char** argv) try
 				break;
 			}
 		}
-
-		
 	}
 
 	training.accuracy(net);

@@ -27,7 +27,9 @@
 #include "dnn/core.h"
 #include "dnn/solvers.h"
 #include "dnn/trainer.h"
-#include "dnn/syncer.h"            // HPZ: Add Syncer header
+#include "dnn/syncer/syncer.h"						// HPZ: Add Syncer header
+#include "dnn/syncer/syncer_default.h"            // HPZ: Add Syncer header
+#include "dnn/syncer/syncer_async.h"				// HPZ: Add Syncer header
 #include "cuda/cpu_dlib.h"
 #include "cuda/tensor_tools.h"
 #include "dnn/utilities.h"
