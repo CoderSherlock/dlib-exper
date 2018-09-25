@@ -31,7 +31,6 @@
 #include "utils_debug.h"
 
 
-#define COMP_BUFFER_SIZE 4096
 using std::chrono::system_clock;
 
 namespace dlib{
@@ -60,9 +59,9 @@ namespace dlib{
 
 
 			// Default sync initilization
-			dnn_syncer();
-			dnn_syncer(const dnn_syncer&);
-			dnn_syncer& operator=(const dnn_syncer&);
+			dnn_syncer() = default;
+			dnn_syncer(const dnn_syncer&) = default;
+			dnn_syncer& operator=(const dnn_syncer&) = default;
 
 			dnn_syncer(int ism){
 				ismaster = ism;
@@ -80,24 +79,12 @@ namespace dlib{
 			void set_isMaster(int);
 			void set_this_device(device);
 
-			void add_slave(device);
-			void remove_slave(size_t);
-
-			void init_slaves();
 
 			/*
 			 *	Print out all slaves' status, including(ip, port, connection pointer and connection status)
 			 *	void(*)
 			 */
-			void print_slaves_status(){
-				DLIB_CASSERT(ismaster == 1, "Slave deivce doesn't have the right to get slaves' status.")
-
-					for(int i = 0; i < this->slaves_list.size(); i++ ){
-						std::cout << "[" << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << "]\t";
-						std::cout << this->slaves_conns[i] << "\t" << this->slaves_status[i] << std::endl;
-					}
-			}
-
+			void print_slaves_status();
 
 			int get_running_slaves_num();
 
@@ -186,90 +173,6 @@ namespace dlib{
 				std::cout << "\n---------------------------------\n";
 			}
 
-
-			void wait_ack(connection* src)
-			{
-				char tmpBuf[10] = {0};
-				src->read(tmpBuf, 10);
-				if (this->verbose)
-					std::cout << "Ack:" << tmpBuf << std::endl;
-			}
-
-			void send_ack(connection* dest, char* content)
-			{
-				char tmpBuf[10] = {0};
-				snprintf(tmpBuf, sizeof(tmpBuf), "%s", content);
-				dest->write(tmpBuf, 10);
-				if (this->verbose)
-					std::cout << "Send ack, content is:" << tmpBuf << std::endl;
-			}
-
-			void send_tensor(connection* dest, tensor* tensor)
-			{
-				char tBuf[30] = {0};
-				snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
-				std::cout << "tBuf:" << tBuf << std::endl;
-				dest->write(tBuf, 30);
-
-				char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
-				float* tmpPtr = (float*)tmpBuf;
-				for(auto j = tensor->begin(); j != tensor->end(); j++)
-				{
-					*(tmpPtr++) = *j;
-				}
-
-
-				std::cout << dest->write(tmpBuf, sizeof(float) * tensor->size()) << std::endl;
-
-				wait_ack(dest);
-			}
-
-			void send_compressed_tensor(connection* dest, tensor* tensor)
-			{
-				char tBuf[30] = {0};
-				snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
-				std::cout << "tBuf:" << tBuf << std::endl;
-				dest->write(tBuf, 30);
-
-				char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
-				std::memset(tmpBuf, '\0', sizeof(float) * tensor->size());
-				float* tmpPtr = (float*)tmpBuf;
-				for(auto j = tensor->begin(); j != tensor->end(); j++)
-				{
-					*(tmpPtr++) = *j;
-				}
-
-				char* write_Ptr = tmpBuf;
-				size_t write_length = 0;
-				size_t write_max = sizeof(float) * tensor->size();
-				size_t flag = 0;
-				while(write_length + COMP_BUFFER_SIZE <= write_max) {
-					int size = dest->write(write_Ptr, COMP_BUFFER_SIZE);
-
-					if (this->num_debug) {
-						unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
-						std::memcpy(fuck_num, write_Ptr, COMP_BUFFER_SIZE);
-						std::cout << "send " << (++flag) << ": ";
-						// for (auto i : fuck_num) {
-						//     std::cout << (int) i << " ";
-						// }
-						std::cout << "[" << size << "]" << std::endl;
-					}
-
-					write_length += size;
-					write_Ptr += size;
-				}
-
-				if (write_length < write_max) {
-					dest->write(write_Ptr, write_max - write_length);
-				}
-
-
-				wait_ack(dest);
-
-			}
-
-
 			void send_gradients_to_master(){
 
 				std::vector<tensor*> tensors;
@@ -289,7 +192,7 @@ namespace dlib{
 					std::cout << i << " " << tensors[i]->size() << std::endl;
 					if(tensors[i]->size() != 0)
 					{
-						send_compressed_tensor(master_conn, tensors[i]);
+						network::send_compressed_tensor(master_conn, tensors[i]);
 					}
 				}
 
@@ -302,7 +205,7 @@ namespace dlib{
 					if(parameters[i]->size() != 0)
 					{
 						// this->print_tensor(parameters[i], 10);
-						send_compressed_tensor(slave, parameters[i]);
+						network::send_compressed_tensor(slave, parameters[i]);
 					}
 				}
 
@@ -349,130 +252,14 @@ namespace dlib{
 
 			/********************************************************************************************************/
 
-			int recieve_tensor(connection* src, tensor* container)
-			{
-				// auto epoch_time = system_clock::now();  // HPZ: Counting
-
-				char sizeBuf[30] = {0};
-
-				src->read(sizeBuf, 30);
-
-				if (this->verbose)
-					std::cout << sizeBuf << std::endl;
-				size_t length = 0;
-				try{
-					length = atoi(sizeBuf);
-					if(this->verbose)
-						std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
-
-				}catch(...){
-					std::cerr << "incorrect with converting" << std::endl;
-				}
-
-				try {
-					if (container->size() != (length / sizeof(*container->begin()))) {
-						std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
-						std::cerr << "Recieving size is not same as container" << std::endl;
-						sleep(100000);
-					}
-				} catch(...) {
-
-				}
-
-				float* tmpBuf = (float*) malloc( sizeof(float));
-				*tmpBuf = 0;
-
-				for(auto j = container->begin(); j != container->end(); j++){
-					src->read((char*)tmpBuf, sizeof(float));
-					*j = *(tmpBuf);
-				}
-
-				send_ack(src, (char*)"got");
-
-				// std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
-
-				return length;
-			}
-
-			int recieve_compressed_tensor(connection* src, tensor* container)
-			{
-				char sizeBuf[30];
-				src->read(sizeBuf, 30);
-				std::cout << sizeBuf << std::endl;
-				size_t length = 0;
-				try
-				{
-					length = atoi(sizeBuf);
-					if(this->verbose)
-						std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
-				} catch(...) {
-					std::cerr << "incorrect with converting" << std::endl;
-				}
-
-				try {
-					if (container->size() != (length / sizeof(*container->begin()))) {
-						std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
-						std::cerr << "Recieving size is not same as container" << std::endl;
-						// sleep(10000000);
-					}
-					if (length == 0) {
-						std::cerr << "Length is invalid" << std::endl;
-						return -1;
-					}
-				} catch(...) {
-
-				}
-
-				// Fix-size reading to the "deflated_buffer"
-				char deflated_buffer[length];
-				memset(deflated_buffer, '\0', length);
-				char* deflated_ptr = &deflated_buffer[0];
-				size_t read_length = length;
-				size_t flag = 0;
-				while (read_length > COMP_BUFFER_SIZE) {
-					//					    std::cout << read_length << std::endl;
-					int size = src->read(deflated_ptr, COMP_BUFFER_SIZE);
-
-					if (this->num_debug) {
-						if (size != COMP_BUFFER_SIZE) {
-							unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
-							std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
-							std::cout << "Recv " << (++flag) << ": ";
-							// for (auto i : fuck_num) {
-							//     std::cout << (int) i << " ";
-							// }
-							std::cout << "[" << size << "]" << std::endl;
-						}
-					}
-
-					deflated_ptr += size;
-					read_length -= size;
-				}
-				if (read_length > 0) {
-					src->read(deflated_ptr, read_length);
-				}
-
-				//TODO: Add deflation process
-
-				float* tmpPtr = (float*)&deflated_buffer[0];
-				for (auto j = container->begin(); j != container->end(); j++) {
-					*j = *tmpPtr;
-					tmpPtr ++;
-				}
-
-				send_ack(src, (char*)"got_comp_2");
-				return length;
-			}
-
-
 			int recieve_gradients_from_one(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors){
 
 				for(size_t i = 0; i < cli_tensors[slave_index].size(); i++)
 				{
 					if(cli_tensors[slave_index][i].size() != 0)
 					{
-						//							this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
-						this->recieve_compressed_tensor(this->slaves_conns[slave_index], &cli_tensors[slave_index][i]);
+						// this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
+						network::recieve_compressed_tensor(this->slaves_conns[slave_index], &cli_tensors[slave_index][i]);
 
 						// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
 					}
@@ -556,7 +343,7 @@ namespace dlib{
 				for(size_t i = 0; i < updated.size(); i++)
 				{
 					if(updated[i].size() != 0)
-						this->recieve_compressed_tensor(master_conn, &updated[i]);
+						network::recieve_compressed_tensor(master_conn, &updated[i]);
 
 					// this->print_tensor(&updated[i], 10);
 
@@ -857,7 +644,28 @@ namespace dlib{
 	};
 
 	template<typename trainer_type>
-	class dnn_leader : dnn_syncer<trainer_type> {
+	class dnn_leader : public dnn_syncer<trainer_type> {
+
+		public:
+			dnn_leader() = default;
+			dnn_leader(const dnn_leader&) = default;
+			dnn_leader& operator=(const dnn_leader&) = default;
+
+			dnn_leader(int ism) {
+				this->ismaster = ism;
+			}
+
+			dnn_leader(trainer_type* trainer, int ism) {
+				this->trainer = trainer;
+				this->ismaster = ism;
+			}
+
+			~dnn_leader() {};
+
+			void add_slave(device);
+			void remove_slave(size_t);
+
+			void init_slaves();
 	
 	};
 

@@ -128,7 +128,7 @@ int main(int argc, char** argv) try
 	 * HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	 */
 	using trainer_type = dnn_trainer<net_type>;
-	dnn_syncer<trainer_type> syncer(&trainer, 0);
+	dnn_leader<trainer_type> syncer(&trainer, 0);
 	syncer.set_this_device(me);
 	syncer.set_isMaster(1);
 	for(int i=0; i < slave_list.size(); i++){

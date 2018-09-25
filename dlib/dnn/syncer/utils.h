@@ -116,11 +116,123 @@ namespace dlib {
 
 
 			wait_ack(dest);
+		}
+		int recieve_tensor(connection* src, tensor* container)
+		{
+			// auto epoch_time = system_clock::now();  // HPZ: Counting
 
+			char sizeBuf[30] = {0};
+
+			src->read(sizeBuf, 30);
+
+			if (SYNC_VERBOSE)
+				std::cout << sizeBuf << std::endl;
+			size_t length = 0;
+			try{
+				length = atoi(sizeBuf);
+				if(SYNC_VERBOSE)
+					std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
+
+			}catch(...){
+				std::cerr << "incorrect with converting" << std::endl;
+			}
+
+			try {
+				if (container->size() != (length / sizeof(*container->begin()))) {
+					std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
+					std::cerr << "Recieving size is not same as container" << std::endl;
+					sleep(100000);
+				}
+			} catch(...) {
+
+			}
+
+			float* tmpBuf = (float*) malloc( sizeof(float));
+			*tmpBuf = 0;
+
+			for(auto j = container->begin(); j != container->end(); j++){
+				src->read((char*)tmpBuf, sizeof(float));
+				*j = *(tmpBuf);
+			}
+
+			network::send_ack(src, (char*)"got");
+
+			// std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
+
+			return length;
 		}
 
+		int recieve_compressed_tensor(connection* src, tensor* container)
+		{
+			char sizeBuf[30];
+			src->read(sizeBuf, 30);
+			std::cout << sizeBuf << std::endl;
+			size_t length = 0;
+			try
+			{
+				length = atoi(sizeBuf);
+				if(SYNC_VERBOSE)
+					std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
+			} catch(...) {
+				std::cerr << "incorrect with converting" << std::endl;
+			}
 
-	}
+			try {
+				if (container->size() != (length / sizeof(*container->begin()))) {
+					std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
+					std::cerr << "Recieving size is not same as container" << std::endl;
+					// sleep(10000000);
+				}
+				if (length == 0) {
+					std::cerr << "Length is invalid" << std::endl;
+					return -1;
+				}
+			} catch(...) {
+
+			}
+
+			// Fix-size reading to the "deflated_buffer"
+			char deflated_buffer[length];
+			memset(deflated_buffer, '\0', length);
+			char* deflated_ptr = &deflated_buffer[0];
+			size_t read_length = length;
+			size_t flag = 0;
+			while (read_length > COMP_BUFFER_SIZE) {
+				//					    std::cout << read_length << std::endl;
+				int size = src->read(deflated_ptr, COMP_BUFFER_SIZE);
+
+				if (NUM_DEBUG) {
+					if (size != COMP_BUFFER_SIZE) {
+						unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
+						std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
+						std::cout << "Recv " << (++flag) << ": ";
+						// for (auto i : fuck_num) {
+						//     std::cout << (int) i << " ";
+						// }
+						std::cout << "[" << size << "]" << std::endl;
+					}
+				}
+
+				deflated_ptr += size;
+				read_length -= size;
+			}
+			if (read_length > 0) {
+				src->read(deflated_ptr, read_length);
+			}
+
+			//TODO: Add deflation process
+
+			float* tmpPtr = (float*)&deflated_buffer[0];
+			for (auto j = container->begin(); j != container->end(); j++) {
+				*j = *tmpPtr;
+				tmpPtr ++;
+			}
+
+			network::send_ack(src, (char*)"got_comp_2");
+			return length;
+		}
+
+	} // End of Namespace network
 
 } // End of Namespace Dlib
 #endif

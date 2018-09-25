@@ -22,8 +22,8 @@ void dlib::dnn_syncer<trainer_type>::set_this_device(device me_) {
 }
 
 template <typename trainer_type>
-void dlib::dnn_syncer<trainer_type>::add_slave(device slave) {
-	DLIB_CASSERT(ismaster == 1, "Slave deivce doesn't have the right to add slaves.");
+void dlib::dnn_leader<trainer_type>::add_slave(device slave) {
+	DLIB_CASSERT(this->ismaster == 1, "Slave deivce doesn't have the right to add slaves.");
 
 	this->slaves_list.push_back(slave);
 	connection* c;
@@ -32,7 +32,7 @@ void dlib::dnn_syncer<trainer_type>::add_slave(device slave) {
 }
 
 template <typename trainer_type>
-void dlib::dnn_syncer<trainer_type>::remove_slave(size_t index) {
+void dlib::dnn_leader<trainer_type>::remove_slave(size_t index) {
 	DLIB_CASSERT(this->ismaster == 1, "Slave deivce doesn't have the right to remove slaves.");
 
 	if (index < 0 || index >= this->slaves_list.size()) {
@@ -44,12 +44,12 @@ void dlib::dnn_syncer<trainer_type>::remove_slave(size_t index) {
 } // End of syncer::remove_slave
 
 template <typename trainer_type>
-void dlib::dnn_syncer<trainer_type>::init_slaves() {
+void dlib::dnn_leader<trainer_type>::init_slaves() {
 	DLIB_CASSERT(this->ismaster == 1, "Slave deivce doesn't have the right to init slaves.");
 
 	for(int i = 0; i < this->slaves_list.size(); i++ ) {
-		if(create_connection(this->slaves_conns[i], (unsigned short)slaves_list[i].port, slaves_list[i].ip, (unsigned short)me.port + i, me.ip)) {
-			std::cerr << "Create failed on " << slaves_list[i].ip << ":" << slaves_list[i].port << std::endl;
+		if(create_connection(this->slaves_conns[i], (unsigned short)this->slaves_list[i].port, this->slaves_list[i].ip, (unsigned short)this->me.port + i, this->me.ip)) {
+			std::cerr << "Create failed on " << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << std::endl;
 			this->slaves_status[i] = slaveStatus::NotConn;
 			continue;
 		}
@@ -58,7 +58,7 @@ void dlib::dnn_syncer<trainer_type>::init_slaves() {
 
 		// Greeting messages
 		char init_msg[30];
-		snprintf(init_msg, sizeof(init_msg), "%s:%d\n", &me.ip[0], me.port);
+		snprintf(init_msg, sizeof(init_msg), "%s:%d\n", &this->me.ip[0], this->me.port);
 		conn->write(init_msg, 30);
 		char reply_msg[30];
 		conn->read(reply_msg, 30);
@@ -66,16 +66,31 @@ void dlib::dnn_syncer<trainer_type>::init_slaves() {
 		// Validating if slave ip and port is correct
 		char* cptr = strchr(reply_msg, ':');
 		char* eptr = strchr(reply_msg, '\n');
-		if(!(std::string(reply_msg, cptr - reply_msg)==slaves_list[i].ip &&
-					atoi(std::string(cptr + 1, eptr - cptr + 1).c_str()) == slaves_list[i].port)) {
+		if(!(std::string(reply_msg, cptr - reply_msg)==this->slaves_list[i].ip &&
+					atoi(std::string(cptr + 1, eptr - cptr + 1).c_str()) == this->slaves_list[i].port)) {
 			std::cerr << "Error in validating slaves" << std::endl;
-			slaves_status[i] = slaveStatus::FailVal;
+			this->slaves_status[i] = slaveStatus::FailVal;
 			continue;
 		}
 
 		this->slaves_status[i] = slaveStatus::Running;
 	}
 }
+
+/*
+ *	Print out all slaves' status, including(ip, port, connection pointer and connection status)
+ *	void(*)
+ */
+template<typename trainer_type>
+void dlib::dnn_syncer<trainer_type>::print_slaves_status(){
+	DLIB_CASSERT(ismaster == 1, "Slave deivce doesn't have the right to get slaves' status.");
+
+	for(int i = 0; i < this->slaves_list.size(); i++ ){
+		std::cout << "[" << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << "]\t";
+		std::cout << this->slaves_conns[i] << "\t" << this->slaves_status[i] << std::endl;
+	}
+}
+
 
 template<typename trainer_type>
 int dlib::dnn_syncer<trainer_type>::get_running_slaves_num(){
