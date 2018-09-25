@@ -99,14 +99,7 @@ namespace dlib{
 			}
 
 
-			int get_running_slaves_num(){
-				int ret = 0;
-				for(int i = 0; i < slaves_list.size(); i++){
-					if(this->slaves_status[i] == 1)
-						ret ++;
-				}
-				return ret;
-			}
+			int get_running_slaves_num();
 
 			int wait_for_master_init(){
 				DLIB_CASSERT(ismaster == 0, "Master deivce doesn't need to wait for being initialized.");
@@ -863,6 +856,15 @@ namespace dlib{
 
 	};
 
+	template<typename trainer_type>
+	class dnn_leader : dnn_syncer<trainer_type> {
+	
+	};
+
+	template<typename trainer_type>
+	class dnn_worker : dnn_syncer<trainer_type> {
+	
+	};
 }
 
 

@@ -33,7 +33,7 @@ void dlib::dnn_syncer<trainer_type>::add_slave(device slave) {
 
 template <typename trainer_type>
 void dlib::dnn_syncer<trainer_type>::remove_slave(size_t index) {
-	DLIB_CASSERT(ismaster == 1, "Slave deivce doesn't have the right to add slaves.");
+	DLIB_CASSERT(this->ismaster == 1, "Slave deivce doesn't have the right to remove slaves.");
 
 	if (index < 0 || index >= this->slaves_list.size()) {
 		std::cerr << "Removing an invalid index" << std::endl;
@@ -45,9 +45,9 @@ void dlib::dnn_syncer<trainer_type>::remove_slave(size_t index) {
 
 template <typename trainer_type>
 void dlib::dnn_syncer<trainer_type>::init_slaves() {
-	DLIB_CASSERT(ismaster == 1, "Slave deivce doesn't have the right to init slaves.");
+	DLIB_CASSERT(this->ismaster == 1, "Slave deivce doesn't have the right to init slaves.");
 
-	for(int i = 0; i < this->slaves_list.size(); i++ ){
+	for(int i = 0; i < this->slaves_list.size(); i++ ) {
 		if(create_connection(this->slaves_conns[i], (unsigned short)slaves_list[i].port, slaves_list[i].ip, (unsigned short)me.port + i, me.ip)) {
 			std::cerr << "Create failed on " << slaves_list[i].ip << ":" << slaves_list[i].port << std::endl;
 			this->slaves_status[i] = slaveStatus::NotConn;
@@ -67,16 +67,25 @@ void dlib::dnn_syncer<trainer_type>::init_slaves() {
 		char* cptr = strchr(reply_msg, ':');
 		char* eptr = strchr(reply_msg, '\n');
 		if(!(std::string(reply_msg, cptr - reply_msg)==slaves_list[i].ip &&
-					atoi(std::string(cptr + 1, eptr - cptr + 1).c_str()) == slaves_list[i].port)){
+					atoi(std::string(cptr + 1, eptr - cptr + 1).c_str()) == slaves_list[i].port)) {
 			std::cerr << "Error in validating slaves" << std::endl;
-
 			slaves_status[i] = slaveStatus::FailVal;
 			continue;
 		}
 
 		this->slaves_status[i] = slaveStatus::Running;
-
 	}
+}
+
+template<typename trainer_type>
+int dlib::dnn_syncer<trainer_type>::get_running_slaves_num(){
+	DLIB_CASSERT(this->ismaster == 1, "Slave deivce doesn't have the right to get running_slaves_num.");
+	int ret = 0;
+	for(int i = 0; i < slaves_list.size(); i++){
+		if(this->slaves_status[i] == 1)
+			ret ++;
+	}
+	return ret;
 }
 
 #endif
