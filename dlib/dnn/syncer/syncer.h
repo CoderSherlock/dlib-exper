@@ -162,73 +162,6 @@ class dnn_syncer {
 
 	/********************************************************************************************************/
 
-	int recieve_gradients_from_one (int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors) {
-
-		for (size_t i = 0; i < cli_tensors[slave_index].size(); i++) {
-			if (cli_tensors[slave_index][i].size() != 0) {
-				// this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
-				network::recieve_compressed_tensor (this->slaves_conns[slave_index], &cli_tensors[slave_index][i]);
-
-				// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
-			}
-		}
-
-		return 1;
-	}
-
-	void init_before_recieving (std::vector<std::vector<resizable_tensor>> &all_tensors) {
-		// Get the pointer of gradients from current device
-		std::vector<tensor *> tensors;
-		tensors.resize (this->trainer->num_computational_layers);
-		visit_layer_parameters (trainer->devices[0]->net, [&] (size_t i, tensor & t) {
-			tensors[i] = &t;
-		});
-
-		// Initialize temporary gradients contrainer from all other devices
-		all_tensors.resize (slaves_status.size());
-
-		for (size_t i = 0; i < all_tensors.size(); i++) {
-			all_tensors[i].resize (this->trainer->num_computational_layers);
-			std::cout << "layers:" << this->trainer->num_computational_layers << std::endl;
-
-			for (size_t j = 0; j < all_tensors[i].size(); j++) {
-				if (slaves_status[i] == slaveStatus::Running) {
-					std::cout << "layer size:" << tensors[j]->size() << std::endl;
-					all_tensors[i][j].copy_size (*tensors[j]);
-				}
-			}
-		}
-	}
-
-	void recieve_gradients_serialism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
-		init_before_recieving (all_tensors);
-
-		// Get gradients if there exists slave machine
-		if (get_running_slaves_num() != 0) {
-			for (int s_c = 0, s_c_max = slaves_status.size(); s_c < s_c_max ; s_c ++) {
-				if (slaves_status[s_c] == slaveStatus::Running) {
-					std::cout << "Reciveing from " << s_c << std::endl;
-					recieve_gradients_from_one (s_c, all_tensors);
-				}
-			}
-		}
-	}
-
-
-	void recieve_gradients_parallism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
-		init_before_recieving (all_tensors);
-		std::vector<std::thread *> recievers;
-		recievers.resize (all_tensors.size());
-
-		for (size_t i = 0; i < recievers.size(); i++) {
-			if (slaves_status[i] == slaveStatus::Running)
-				recievers[i] = new std::thread (&dnn_syncer::recieve_gradients_from_one, this, i, std::ref (all_tensors));
-		}
-
-		for (size_t i = 0; i < recievers.size(); i++) {
-			recievers[i]->join();
-		}
-	}
 
 
 	void recieve_updated_parameters (std::vector<resizable_tensor> &updated) {
@@ -341,6 +274,14 @@ class dnn_leader : public dnn_syncer<trainer_type> {
 	void send_parameters_to_slaves_serialised (std::vector<tensor *> parameters);
 
 	void send_parameters_to_slaves_paralized (std::vector<tensor *> parameters);
+
+	int recieve_gradients_from_one (int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors);
+
+	void init_before_recieving (std::vector<std::vector<resizable_tensor>> &all_tensors);
+
+	void recieve_gradients_serialism (std::vector<std::vector<resizable_tensor>> &all_tensors);
+
+	void recieve_gradients_parallism (std::vector<std::vector<resizable_tensor>> &all_tensors);
 
 	void sn_sync();
 };

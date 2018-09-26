@@ -23,6 +23,46 @@ void dnn_syncer<trainer_type>::set_this_device (device me_) {
 	this->me = me_;
 }
 
+/*
+ *	Print out all slaves' status, including(ip, port, connection pointer and connection status)
+ *	void(*)
+ */
+template<typename trainer_type>
+void dnn_syncer<trainer_type>::print_slaves_status() {
+	DLIB_CASSERT (ismaster == 1, "Slave deivce doesn't have the right to get slaves' status.");
+
+	for (int i = 0; i < this->slaves_list.size(); i++ ) {
+		std::cout << "[" << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << "]\t";
+		std::cout << this->slaves_conns[i] << "\t" << this->slaves_status[i] << std::endl;
+	}
+}
+
+
+template<typename trainer_type>
+int dnn_syncer<trainer_type>::get_running_slaves_num() {
+	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to get running_slaves_num.");
+	int ret = 0;
+
+	for (int i = 0; i < slaves_list.size(); i++) {
+		if (this->slaves_status[i] == 1)
+			ret ++;
+	}
+
+	return ret;
+}
+
+/*==================================================================================
+ *	Leader Manage functions, by PZH
+ *
+ *  add_slave
+ *  remove_slave
+ *  init_slaves
+ *  send_parameters: send parameters to specified slave(one)
+ *  send_parameters_to_slaves_serialism: send parameters to all slaves in serial
+ *  send_parameters_to_slaves_paralized: send parameters to all slaves in parali
+ *  sn_sync: sync procedure/ call every round
+ *  recieve_gradients_from_one: recieve gradients from specific slave
+ ===================================================================================*/
 template <typename trainer_type>
 void dnn_leader<trainer_type>::add_slave (device slave) {
 	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to add slaves.");
@@ -81,33 +121,6 @@ void dnn_leader<trainer_type>::init_slaves() {
 	}
 }
 
-/*
- *	Print out all slaves' status, including(ip, port, connection pointer and connection status)
- *	void(*)
- */
-template<typename trainer_type>
-void dnn_syncer<trainer_type>::print_slaves_status() {
-	DLIB_CASSERT (ismaster == 1, "Slave deivce doesn't have the right to get slaves' status.");
-
-	for (int i = 0; i < this->slaves_list.size(); i++ ) {
-		std::cout << "[" << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << "]\t";
-		std::cout << this->slaves_conns[i] << "\t" << this->slaves_status[i] << std::endl;
-	}
-}
-
-
-template<typename trainer_type>
-int dnn_syncer<trainer_type>::get_running_slaves_num() {
-	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to get running_slaves_num.");
-	int ret = 0;
-
-	for (int i = 0; i < slaves_list.size(); i++) {
-		if (this->slaves_status[i] == 1)
-			ret ++;
-	}
-
-	return ret;
-}
 
 // TODO:: slave is dependent on index
 template<typename trainer_type>
@@ -258,6 +271,78 @@ void dnn_leader<trainer_type>::sn_sync() {
 
 	std::cout << "Sync finished" << std::endl;
 	//	sleep(1000);
+}
+
+template<typename trainer_type>
+int dnn_leader<trainer_type>::recieve_gradients_from_one (int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors) {
+
+	for (size_t i = 0; i < cli_tensors[slave_index].size(); i++) {
+		if (cli_tensors[slave_index][i].size() != 0) {
+			// this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
+			network::recieve_compressed_tensor (this->slaves_conns[slave_index], &cli_tensors[slave_index][i]);
+
+			// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
+		}
+	}
+
+	return 1;
+}
+
+template<typename trainer_type>
+void dnn_leader<trainer_type>::init_before_recieving (std::vector<std::vector<resizable_tensor>> &all_tensors) {
+	// Get the pointer of gradients from current device
+	std::vector<tensor *> tensors;
+	tensors.resize (this->trainer->num_computational_layers);
+	visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t i, tensor & t) {
+		tensors[i] = &t;
+	});
+
+	// Initialize temporary gradients contrainer from all other devices
+	all_tensors.resize (this->slaves_status.size());
+
+	for (size_t i = 0; i < all_tensors.size(); i++) {
+		all_tensors[i].resize (this->trainer->num_computational_layers);
+		std::cout << "layers:" << this->trainer->num_computational_layers << std::endl;
+
+		for (size_t j = 0; j < all_tensors[i].size(); j++) {
+			if (this->slaves_status[i] == slaveStatus::Running) {
+				std::cout << "layer size:" << tensors[j]->size() << std::endl;
+				all_tensors[i][j].copy_size (*tensors[j]);
+			}
+		}
+	}
+}
+
+template<typename trainer_type>
+void dnn_leader<trainer_type>::recieve_gradients_serialism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
+	init_before_recieving (all_tensors);
+
+	// Get gradients if there exists slave machine
+	if (this->get_running_slaves_num() != 0) {
+		for (int s_c = 0, s_c_max = this->slaves_status.size(); s_c < s_c_max ; s_c ++) {
+			if (this->slaves_status[s_c] == slaveStatus::Running) {
+				std::cout << "Reciveing from " << s_c << std::endl;
+				recieve_gradients_from_one (s_c, all_tensors);
+			}
+		}
+	}
+}
+
+
+template<typename trainer_type>
+void dnn_leader<trainer_type>::recieve_gradients_parallism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
+	init_before_recieving (all_tensors);
+	std::vector<std::thread *> recievers;
+	recievers.resize (all_tensors.size());
+
+	for (size_t i = 0; i < recievers.size(); i++) {
+		if (this->slaves_status[i] == slaveStatus::Running)
+			recievers[i] = new std::thread (&dnn_leader::recieve_gradients_from_one, this, i, std::ref (all_tensors));
+	}
+
+	for (size_t i = 0; i < recievers.size(); i++) {
+		recievers[i]->join();
+	}
 }
 
 
