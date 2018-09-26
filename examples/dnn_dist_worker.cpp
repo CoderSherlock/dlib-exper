@@ -131,7 +131,7 @@ int main(int argc, char** argv) try
 
 	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	using trainer_type = dnn_trainer<net_type>;
-	dnn_syncer<trainer_type> syncer(&trainer, 0);
+	dnn_worker<trainer_type> syncer(&trainer, 0);
 	syncer.set_this_device(me);
 	
 	// TODO: Wait for master connect
