@@ -51,6 +51,25 @@ int dnn_syncer<trainer_type>::get_running_slaves_num() {
 	return ret;
 }
 
+template<typename trainer_type>
+void dnn_syncer<trainer_type>::update (std::vector<tensor *> &updated) {
+	std::vector<tensor *> old_tensors;
+	old_tensors.resize (this->trainer->num_computational_layers);
+
+	visit_layer_parameters (trainer->devices[0]->net, [&] (size_t i, tensor & t) {
+		old_tensors[i] = &t;
+	});
+
+	for (size_t i = 0; i < old_tensors.size(); i++) {
+		if (old_tensors[i]->size() != 0) {
+			for (auto j = old_tensors[i]->begin(), k = updated[i]->begin(); j != old_tensors[i]->end(); j++, k++) {
+				*j = *k;
+			}
+		}
+	}
+}
+
+
 /*==================================================================================
  *	Leader Manage functions, by PZH
  *
@@ -240,7 +259,7 @@ void dnn_leader<trainer_type>::sn_sync() {
 		temp[i] = &all_tensors[0][i];
 	}
 
-
+	this->update_gradients (temp);
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	if (this->exper)																															//
@@ -345,6 +364,23 @@ void dnn_leader<trainer_type>::recieve_gradients_parallism (std::vector<std::vec
 	}
 }
 
+template<typename trainer_type>
+void dnn_leader<trainer_type>::update_gradients (std::vector<tensor *> &gradients) {
+	std::vector<tensor *> old_tensors;
+	old_tensors.resize (this->trainer->num_computational_layers);
+
+	visit_layer_parameter_gradients (this->trainer->devices[0]->net, [&] (size_t i, tensor & t) {
+		old_tensors[i] = &t;
+	});
+
+	for (size_t i = 0; i < old_tensors.size(); i++) {
+		if (old_tensors[i]->size() != 0) {
+			for (auto j = old_tensors[i]->begin(), k = gradients[i]->begin(); j != old_tensors[i]->end(); j++, k++) {
+				*j = *k;
+			}
+		}
+	}
+}
 
 } // End of Namespace dlib
 

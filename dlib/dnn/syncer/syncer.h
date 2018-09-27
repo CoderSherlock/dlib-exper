@@ -131,62 +131,6 @@ class dnn_syncer {
 
 	}
 
-	void send_gradients_to_master() {
-
-		std::vector<tensor *> tensors;
-		tensors.resize (this->trainer->num_computational_layers);
-
-		visit_layer_parameter_gradients (trainer->devices[0]->net, [&] (size_t i, tensor & t) {
-			tensors[i] = &t;
-		});
-
-		if (this->num_debug) {
-			for (size_t i = 0; i < tensors.size(); i++) {
-				if (tensors[i]->size() != 0)
-					print_tensor (tensors[i], 10);
-			}
-		}
-
-		for (size_t i = 0; i < tensors.size(); i++) {
-			std::cout << i << " " << tensors[i]->size() << std::endl;
-
-			if (tensors[i]->size() != 0) {
-				network::send_compressed_tensor (master_conn, tensors[i]);
-			}
-		}
-
-	}
-
-
-
-
-	/********************************************************************************************************/
-
-
-
-	void recieve_updated_parameters (std::vector<resizable_tensor> &updated) {
-		// Initialize
-		std::vector<tensor *> tensors;
-		tensors.resize (this->trainer->num_computational_layers);
-		visit_layer_parameters (trainer->devices[0]->net, [&] (size_t i, tensor & t) {
-			tensors[i] = &t;
-		});
-
-		updated.resize (this->trainer->num_computational_layers);
-
-		for (size_t i = 0; i < updated.size(); i++) {
-			updated[i].copy_size (*tensors[i]);
-		}
-
-
-		for (size_t i = 0; i < updated.size(); i++) {
-			if (updated[i].size() != 0)
-				network::recieve_compressed_tensor (master_conn, &updated[i]);
-
-			// this->print_tensor(&updated[i], 10);
-
-		}
-	}
 
 	void average (std::vector<std::vector<resizable_tensor>> &all_tensors) {
 		std::vector<std::vector<tensor *>> accessible_groups;
@@ -215,23 +159,7 @@ class dnn_syncer {
 		}
 	}
 
-	void update (std::vector<tensor *> &updated) {
-		std::vector<tensor *> old_tensors;
-		old_tensors.resize (this->trainer->num_computational_layers);
-
-		visit_layer_parameter_gradients (trainer->devices[0]->net, [&] (size_t i, tensor & t) {
-			old_tensors[i] = &t;
-		});
-		// visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor& t){old_tensors[i] = &t;});
-
-		for (size_t i = 0; i < old_tensors.size(); i++) {
-			if (old_tensors[i]->size() != 0) {
-				for (auto j = old_tensors[i]->begin(), k = updated[i]->begin(); j != old_tensors[i]->end(); j++, k++) {
-					*j = *k;
-				}
-			}
-		}
-	}
+	void update (std::vector<tensor *> &updated);
 
 	// TODO
 	dnn_syncer &operator<< (std::ostream &out) {
@@ -283,6 +211,8 @@ class dnn_leader : public dnn_syncer<trainer_type> {
 
 	void recieve_gradients_parallism (std::vector<std::vector<resizable_tensor>> &all_tensors);
 
+	void update_gradients(std::vector<tensor*> & gradients);
+
 	void sn_sync();
 };
 
@@ -301,6 +231,10 @@ class dnn_worker : public dnn_syncer<trainer_type> {
 		this->trainer = trainer;
 		this->ismaster = ism;
 	}
+
+	void send_gradients_to_master();
+
+	void recieve_updated_parameters (std::vector<resizable_tensor> &updated);
 
 	void sn_sync();
 
