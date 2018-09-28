@@ -27,6 +27,9 @@ void dnn_worker<trainer_type>::sn_sync() {
 	}
 
 	this->update (temp);
+	while(this->trainer->status_lock.trylock() == 0);
+	this->trainer->synchronization_status = 3;
+	this->trainer->status_lock.unlock();
 
 	std::cout << "Sync finished" << std::endl;
 	// sleep(1000);

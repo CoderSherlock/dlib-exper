@@ -875,7 +875,10 @@ namespace dlib
 					// std::cout << "[trainer]: train completed" << std::endl;
 					status_lock.unlock();
 
-					while(synchronization_status != 2) {}
+					while(synchronization_status != 2 && synchronization_status != 3) {}
+					if (synchronization_status == 3) {
+						continue;
+					}
 					// std::cout << "[trainer]: Start to update" << std::endl;
 				}					
 				// std::cout << "Update" << std::endl;
