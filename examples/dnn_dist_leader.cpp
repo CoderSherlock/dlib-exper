@@ -168,6 +168,7 @@ int main (int argc, char **argv) try {
 
 	while (1) {
 		mark += 1;
+		trainer.train_noop();
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 		// trainer.train_one_epoch(local_training_images, local_training_labels);
 

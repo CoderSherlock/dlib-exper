@@ -213,6 +213,12 @@ namespace dlib
 			// sync_to_disk(true);
 		}
 
+        int train_noop () {
+            job_t j;
+            job_pipe.enqueue(j);
+			
+			return 0;
+        }
 		int train_one_batch(
 			const std::vector<input_type>& data,
 			const std::vector<training_label_type>& labels
