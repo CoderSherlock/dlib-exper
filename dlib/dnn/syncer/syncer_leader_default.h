@@ -146,7 +146,7 @@ template<typename trainer_type>
 void dnn_leader<trainer_type>::send_parameters (connection *slave, std::vector<tensor *> parameters) {
 	for (size_t i = 0; i < parameters.size(); i++) {
 		if (parameters[i]->size() != 0) {
-			// this->print_tensor(parameters[i], 10);
+			print_tensor(parameters[i], 10);
 			network::send_compressed_tensor (slave, parameters[i]);
 		}
 	}
@@ -259,7 +259,21 @@ void dnn_leader<trainer_type>::sn_sync() {
 		temp[i] = &all_tensors[0][i];
 	}
 
+	while (this->trainer->synchronization_status != 1) { }
+
 	this->update_gradients (temp);
+
+	while (this->trainer->status_lock.trylock() == 0);
+
+	if (this->trainer->synchronization_status != 1)
+		std::cout << "Something wrong with sync lock: current: " << this->trainer->synchronization_status << "\t Going to set: 2" << std::endl;
+
+	this->trainer->synchronization_status = 2;
+	// std::cout << "[trainer]: train completed" << std::endl;
+	this->trainer->status_lock.unlock();
+
+	while (this->trainer->synchronization_status != 3) { }
+
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	if (this->exper)																															//

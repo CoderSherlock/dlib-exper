@@ -174,13 +174,6 @@ int main(int argc, char** argv) try
 		auto sync_time = system_clock::now();  // HPZ: Counting
 		syncer.sn_sync();
 		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - sync_time).count() << std::endl;   // HPZ: Counting
-
-		while(trainer.status_lock.trylock() == 0);
-		if (trainer.synchronization_status != 1)
-			std::cout << "Something wrong with sync lock: current: " << trainer.synchronization_status << "\t Going to set: 2" << std::endl;
-		trainer.synchronization_status = 2;
-		// std::cout << "[dnn_master]: sync completed"<< std::endl;
-		trainer.status_lock.unlock();
 		
 		// serialize(trainer, std::cout);
 

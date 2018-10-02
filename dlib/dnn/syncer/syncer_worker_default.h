@@ -27,7 +27,9 @@ void dnn_worker<trainer_type>::sn_sync() {
 	}
 
 	this->update (temp);
-	while(this->trainer->status_lock.trylock() == 0);
+
+	while (this->trainer->status_lock.trylock() == 0);
+
 	this->trainer->synchronization_status = 3;
 	this->trainer->status_lock.unlock();
 

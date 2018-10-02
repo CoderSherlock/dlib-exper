@@ -215,7 +215,25 @@ namespace dlib
 
         int train_noop () {
             job_t j;
+            size_t devs = devices.size();
+            j.t.resize(devs);
+            j.labels.resize(devs);
+            j.have_data.resize(devs);
+            j.test_only = false;
+
+            for (size_t i = 0; i < devs; ++i)
+            {
+				j.have_data[i] = false;
+            }
+
             job_pipe.enqueue(j);
+
+			if (isDistributed)
+			{
+				while(status_lock.trylock() == 0);
+				synchronization_status = 0;
+				status_lock.unlock();
+			}
 			
 			return 0;
         }
@@ -744,7 +762,7 @@ namespace dlib
             {
 				if (isDistributed)
 				{
-					while(synchronization_status != 0) {std::cout << "wait to start" << std::endl;}
+					while(synchronization_status != 0) { }
 				}					
 				
                 if (next_job.test_only)
@@ -918,8 +936,8 @@ namespace dlib
                 // have a "budget" that prevents us from calling
                 // count_steps_without_decrease() every iteration.  We do this because
                 // it can be expensive to compute when previous_loss_values is large.
-                if (gradient_check_budget > iter_without_progress_thresh && learning_rate_shrink != 1)
-                {
+				if (gradient_check_budget > iter_without_progress_thresh && learning_rate_shrink != 1)
+				{
                     gradient_check_budget = 0;
                     steps_without_progress = count_steps_without_decrease(previous_loss_values);
                     if (steps_without_progress >= iter_without_progress_thresh)
