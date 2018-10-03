@@ -196,7 +196,6 @@ namespace dlib {
 			memset(deflated_buffer, '\0', length);
 			char* deflated_ptr = &deflated_buffer[0];
 			size_t read_length = length;
-			size_t flag = 0;
 			while (read_length > COMP_BUFFER_SIZE) {
 				//					    std::cout << read_length << std::endl;
 				int size = src->read(deflated_ptr, COMP_BUFFER_SIZE);
@@ -205,11 +204,9 @@ namespace dlib {
 					if (size != COMP_BUFFER_SIZE) {
 						unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
 						std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
-						std::cout << "Recv " << (++flag) << ": ";
 						// for (auto i : fuck_num) {
 						//     std::cout << (int) i << " ";
 						// }
-						std::cout << "[" << size << "]" << std::endl;
 					}
 				}
 

@@ -335,11 +335,9 @@ void dnn_leader<trainer_type>::init_before_recieving (std::vector<std::vector<re
 
 	for (size_t i = 0; i < all_tensors.size(); i++) {
 		all_tensors[i].resize (this->trainer->num_computational_layers);
-		std::cout << "layers:" << this->trainer->num_computational_layers << std::endl;
 
 		for (size_t j = 0; j < all_tensors[i].size(); j++) {
 			if (this->slaves_status[i] == slaveStatus::Running) {
-				std::cout << "layer size:" << tensors[j]->size() << std::endl;
 				all_tensors[i][j].copy_size (*tensors[j]);
 			}
 		}
