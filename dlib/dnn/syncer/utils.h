@@ -6,8 +6,8 @@
 #include "../../sockets.h"
 
 #define COMP_BUFFER_SIZE 4096
-#define SYNC_VERBOSE 1
-#define NUM_DEBUG 1
+#define SYNC_VERBOSE 0
+#define NUM_DEBUG 0
 
 namespace dlib {
 
@@ -57,7 +57,6 @@ namespace dlib {
 		{
 			char tBuf[30] = {0};
 			snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
-			std::cout << "tBuf:" << tBuf << std::endl;
 			dest->write(tBuf, 30);
 
 			char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
@@ -78,7 +77,6 @@ namespace dlib {
 		{
 			char tBuf[30] = {0};
 			snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
-			std::cout << "tBuf:" << tBuf << std::endl;
 			dest->write(tBuf, 30);
 
 			char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
@@ -99,11 +97,11 @@ namespace dlib {
 				if (NUM_DEBUG) {
 					unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
 					std::memcpy(fuck_num, write_Ptr, COMP_BUFFER_SIZE);
-					std::cout << "send " << (++flag) << ": ";
+					// std::cout << "send " << (++flag) << ": ";
 					// for (auto i : fuck_num) {
 					//     std::cout << (int) i << " ";
 					// }
-					std::cout << "[" << size << "]" << std::endl;
+					// std::cout << "[" << size << "]" << std::endl;
 				}
 
 				write_length += size;

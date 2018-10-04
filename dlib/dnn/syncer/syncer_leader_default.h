@@ -143,11 +143,19 @@ void dnn_leader<trainer_type>::init_slaves() {
 
 // TODO:: slave is dependent on index
 template<typename trainer_type>
-void dnn_leader<trainer_type>::send_parameters (connection *slave, std::vector<tensor *> parameters) {
-	for (size_t i = 0; i < parameters.size(); i++) {
-		if (parameters[i]->size() != 0) {
-			print_tensor(parameters[i], 10);
-			network::send_compressed_tensor (slave, parameters[i]);
+void dnn_leader<trainer_type>::send_parameters (connection *slave) {
+
+	std::vector<tensor *> tensors;
+	tensors.resize (this->trainer->num_computational_layers);
+
+	visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t i, tensor & t) {
+		tensors[i] = &t;
+	});
+
+	for (size_t i = 0; i < tensors.size(); i++) {
+		if (tensors[i]->size() != 0) {
+			print_tensor(tensors[i], 10);
+			network::send_compressed_tensor (slave, tensors[i]);
 		}
 	}
 
@@ -158,12 +166,12 @@ void dnn_leader<trainer_type>::send_parameters (connection *slave, std::vector<t
  *
  ******************************************************/
 template<typename trainer_type>
-void dnn_leader<trainer_type>::send_parameters_to_slaves_serialised (std::vector<tensor *> parameters) {
+void dnn_leader<trainer_type>::send_parameters_to_slaves_serialised () {
 	if (this->get_running_slaves_num() != 0) {
 
 		for (int s_c = 0, s_c_max = this->slaves_status.size(); s_c < s_c_max ; s_c ++) {
 			if (this->slaves_status[s_c] == slaveStatus::Running) {
-				send_parameters (this->slaves_conns[s_c], parameters);
+				send_parameters (this->slaves_conns[s_c]);
 			}
 		}
 	}
@@ -175,13 +183,13 @@ void dnn_leader<trainer_type>::send_parameters_to_slaves_serialised (std::vector
  *
  ******************************************************/
 template<typename trainer_type>
-void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized (std::vector<tensor *> parameters) {
+void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized () {
 	std::vector<std::thread *> recievers;
 	recievers.resize (this->slaves_list.size());
 
 	for (size_t i = 0; i < recievers.size(); i++) {
 		if (this->slaves_status[i] == slaveStatus::Running)
-			recievers[i] = new std::thread (&dnn_leader::send_parameters, this, this->slaves_conns[i], parameters);
+			recievers[i] = new std::thread (&dnn_leader::send_parameters, this, this->slaves_conns[i]);
 	}
 
 	for (size_t i = 0; i < recievers.size(); i++) {
@@ -283,7 +291,7 @@ void dnn_leader<trainer_type>::sn_sync() {
 	epoch_time = system_clock::now();  // HPZ: Counting																						  	//
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	send_parameters_to_slaves_paralized (temp);
+	send_parameters_to_slaves_paralized ();
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	if (this->exper)																															 //

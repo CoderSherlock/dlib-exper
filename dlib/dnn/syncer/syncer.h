@@ -197,11 +197,11 @@ class dnn_leader : public dnn_syncer<trainer_type> {
 
 	void init_slaves();
 
-	void send_parameters (connection *slave, std::vector<tensor *> parameters);
+	void send_parameters (connection *slave);
 
-	void send_parameters_to_slaves_serialised (std::vector<tensor *> parameters);
+	void send_parameters_to_slaves_serialised ();
 
-	void send_parameters_to_slaves_paralized (std::vector<tensor *> parameters);
+	void send_parameters_to_slaves_paralized ();
 
 	int recieve_gradients_from_one (int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors);
 

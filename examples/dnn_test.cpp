@@ -198,6 +198,7 @@ int main(int argc, char** argv) try
 		// serialize(trainer, std::cout);
 
 		// Wait for all devices send back to their paramaters
+		
 
 		std::cout << "Finish epoch " << epoch++ << std::endl;
 		std::cout << "Time for Epoch is " 
