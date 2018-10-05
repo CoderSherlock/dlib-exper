@@ -217,6 +217,24 @@ class dnn_leader : public dnn_syncer<trainer_type> {
 };
 
 template<typename trainer_type>
+class dnn_async_leader : public dnn_leader<trainer_type> {
+
+  public:
+	dnn_async_leader() = default;
+	dnn_async_leader (const dnn_async_leader &) = default;
+	dnn_async_leader &operator= (const dnn_async_leader &) = default;
+
+	dnn_async_leader (int ism) {
+		this->ismaster = ism;
+	}
+
+	dnn_async_leader (trainer_type *trainer, int ism) {
+		this->trainer = trainer;
+		this->ismaster = ism;
+	}
+};
+
+template<typename trainer_type>
 class dnn_worker : public dnn_syncer<trainer_type> {
   public:
 	dnn_worker() = default;

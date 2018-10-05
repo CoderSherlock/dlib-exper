@@ -228,12 +228,12 @@ namespace dlib
 
             job_pipe.enqueue(j);
 
-			if (isDistributed)
-			{
-				while(status_lock.trylock() == 0);
-				synchronization_status = 0;
-				status_lock.unlock();
-			}
+			// if (isDistributed)
+			// {
+			// 	while(status_lock.trylock() == 0);
+			// 	synchronization_status = 0;
+			// 	status_lock.unlock();
+			// }
 			
 			return 0;
         }

@@ -199,6 +199,11 @@ void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized () {
 
 template<typename trainer_type>
 void dnn_leader<trainer_type>::sn_sync() {
+	while (this->trainer->status_lock.trylock() == 0);
+
+	this->trainer->synchronization_status = 0;
+	// std::cout << "[trainer]: train completed" << std::endl;
+	this->trainer->status_lock.unlock();
 
 	std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager> (this->trainer->num_computational_layers);
 
