@@ -913,6 +913,9 @@ namespace dlib
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->wait_for_all_tasks();
 
+				visit_layer_parameters (devices[0]->net, [&] (size_t j, tensor & t) {
+					std::cout<<"TR get parameteres from" << j << " -- "<<&t << std::endl;
+				});
 
                 // Every now and then force all the parameters to be the same just to make
                 // sure they aren't drifting apart due to any non-deterministic behavior on
