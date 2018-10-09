@@ -232,6 +232,10 @@ class dnn_async_leader : public dnn_leader<trainer_type> {
 		this->trainer = trainer;
 		this->ismaster = ism;
 	}
+
+	void init_reciever_pool();
+
+	void sync();
 };
 
 template<typename trainer_type>

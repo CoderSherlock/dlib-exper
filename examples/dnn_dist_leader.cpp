@@ -26,6 +26,8 @@
 
 #include "dnn_dist_data.h"
 
+#define ASYNC 0
+
 using namespace std;
 using namespace dlib;
 using std::chrono::system_clock;
@@ -127,17 +129,17 @@ int main (int argc, char **argv) try {
 	 * HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	 */
 	using trainer_type = dnn_trainer<net_type>;
+
+#if !ASYNC
 	dnn_leader<trainer_type> syncer (&trainer, 0);
+#else
+#endif
 	syncer.set_this_device (me);
 	syncer.set_isMaster (1);
 
 	for (int i = 0; i < slave_list.size(); i++) {
 		syncer.add_slave (slave_list[i]);
 	}
-
-
-	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
-	syncer.print_slaves_status();
 
 	trainer.isDistributed = 1;
 
@@ -147,30 +149,31 @@ int main (int argc, char **argv) try {
 	trainer.synchronization_status = 0;
 	trainer.train_one_batch (training.getData(), training.getLabel());
 
-	while (trainer.synchronization_status != 1) {
-		asm ("");
-	}//std::cout<<"wait to sync" << std::endl;}
+	while (trainer.synchronization_status != 1) { }
 
 	trainer.synchronization_status = 2;
 
-	while (trainer.synchronization_status != 3) {}
+	while (trainer.synchronization_status != 3) { }
 
+#if !ASYNC
 	syncer.init_slaves();
+#else
+#endif
 
-	// std::cout << syncer << std::endl;
+	std::cout << "Finished Initialization, now start training procedures" << std::endl;
+	syncer.print_slaves_status();
+	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
 
 	int epoch = 0, batch = 0;
 	int mark = 0;
-	/*
-	 *	Record Overall time
-	 */
+
 	auto time = 0;
 
 	while (1) {
 		mark += 1;
 		trainer.train_noop();
 		auto epoch_time = system_clock::now();  // HPZ: Counting
-		// trainer.train_one_epoch(local_training_images, local_training_labels);
+		// epoch += trainer.train_one_batch(local_training_images, local_training_labels);
 
 		syncer.sn_sync();
 
@@ -178,11 +181,6 @@ int main (int argc, char **argv) try {
 		std::cout << "Time for batch is "
 				  << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
 		time += std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count();
-
-		std::cout << trainer.learning_rate << std::endl;
-		// std::cout << "[After]" << std::endl;
-		// testing.accuracy(net);
-		//
 
 		if (ismaster) {
 			if (trainer.learning_rate <= 0.001) {

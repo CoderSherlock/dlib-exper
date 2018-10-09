@@ -908,7 +908,8 @@ namespace dlib
 				// std::cout << "Update" << std::endl;
 
                 for (size_t i = 0; i < devices.size(); ++i)
-                    tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
+					tp[i]->add_task_by_value([&,i](){ update_parameters(i); });
+					// tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
                 // and wait for the updates to all happen.
                 for (size_t i = 0; i < devices.size(); ++i)
                     tp[i]->wait_for_all_tasks();
