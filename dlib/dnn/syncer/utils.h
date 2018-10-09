@@ -36,17 +36,17 @@ namespace dlib {
 
 		// Wait for an acknowledgement from the connection
 		void wait_ack(connection* src) {
-			char tmpBuf[10] = {0};
-			src->read(tmpBuf, 10);
+			char tmpBuf[15] = {0};
+			src->read(tmpBuf, 15);
 			if (SYNC_VERBOSE)
 				std::cout << "Ack:" << tmpBuf << std::endl;
 		}
 
 		// Send an acknowledgement from the connection
 		void send_ack(connection* dest, char* content) {
-			char tmpBuf[10] = {0};
+			char tmpBuf[15] = {0};
 			snprintf(tmpBuf, sizeof(tmpBuf), "%s", content);
-			dest->write(tmpBuf, 10);
+			dest->write(tmpBuf, 15);
 			if (SYNC_VERBOSE) {
 				std::cout << "Send ack, content is:" << tmpBuf << std::endl;
 			}
