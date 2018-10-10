@@ -26,7 +26,7 @@
 
 #include "dnn_dist_data.h"
 
-#define ASYNC 0
+#define ASYNC 1
 
 using namespace std;
 using namespace dlib;
@@ -133,6 +133,7 @@ int main (int argc, char **argv) try {
 #if !ASYNC
 	dnn_leader<trainer_type> syncer (&trainer, 0);
 #else
+	dnn_async_leader<trainer_type> syncer(&trainer, 0);
 #endif
 	syncer.set_this_device (me);
 	syncer.set_isMaster (1);

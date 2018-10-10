@@ -1,9 +1,9 @@
 #ifndef _DLIB_DNn_SYNCER_UTILS_H_
 #define _DLIB_DNn_SYNCER_UTILS_H_
 
-#include <iostream>
-#include "../trainer.h"
 #include "../../sockets.h"
+#include "../trainer.h"
+#include <iostream>
 
 #define COMP_BUFFER_SIZE 4096
 #define SYNC_VERBOSE 0
@@ -11,223 +11,264 @@
 
 namespace dlib {
 
-	struct device{
-		int number = -1;
-		std::string ip;
-		int port = 2333;
+struct device {
+	int number = -1;
+	std::string ip;
+	int port = 2333;
 
-		device() { }
+	device() {}
 
-		device(int number_, std::string ip_, int port_): number(number_), ip(ip_), port(port_) {
-			number = number_;
-			ip = ip_;
-			port = port_;
-		}
-	}; // End of Structure device
+	device (int number_, std::string ip_, int port_)
+		: number (number_), ip (ip_), port (port_) {
+		number = number_;
+		ip = ip_;
+		port = port_;
+	}
+}; // End of Structure device
 
-	enum slaveStatus{
-		FailVal		= -2,
-		NotConn		= -1,
-		Initlize	= 0,
-		Running		= 1
-	}; // End of Enum slaveStatus
+enum slaveStatus {
+	FailVal = -2,
+	NotConn = -1,
+	Initlize = 0,
+	Running = 1
+}; // End of Enum slaveStatus
 
-	namespace network {
+struct task {
+  public:
+	size_t slave_index = -1;
+	bool ready = 0;
+	std::vector<tensor *> *tensors;
 
-		// Wait for an acknowledgement from the connection
-		void wait_ack(connection* src) {
-			char tmpBuf[15] = {0};
-			src->read(tmpBuf, 15);
-			if (SYNC_VERBOSE)
-				std::cout << "Ack:" << tmpBuf << std::endl;
-		}
+	task () = default;
+	task (size_t si_, bool ready_, std::vector<tensor *> *tensors_) {
+		slave_index = si_;
+		ready = ready_;
+		tensors = tensors_;
+	}
 
-		// Send an acknowledgement from the connection
-		void send_ack(connection* dest, char* content) {
-			char tmpBuf[15] = {0};
-			snprintf(tmpBuf, sizeof(tmpBuf), "%s", content);
-			dest->write(tmpBuf, 15);
-			if (SYNC_VERBOSE) {
-				std::cout << "Send ack, content is:" << tmpBuf << std::endl;
-			}
-		}
+	~task () = default;
+}; // End of class task
 
-		// Send a tensor to the connection 
-		void send_tensor(connection* dest, tensor* tensor)
-		{
-			char tBuf[30] = {0};
-			snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
-			dest->write(tBuf, 30);
+class task_queue {
+  public:
+	task_queue () = default;
+	task_queue (const task_queue &) = default;
+	task_queue &operator= (const task_queue &) = default;
+	~task_queue() = default;
 
-			char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
-			float* tmpPtr = (float*)tmpBuf;
-			for(auto j = tensor->begin(); j != tensor->end(); j++)
-			{
-				*(tmpPtr++) = *j;
-			}
+  private:
+	std::vector<task> queue;
+};
 
-			std::cout << dest->write(tmpBuf, sizeof(float) * tensor->size()) << std::endl;
+namespace network {
 
-			wait_ack(dest);
-		}
+// Wait for an acknowledgement from the connection
+void wait_ack (connection *src) {
+	char tmpBuf[15] = {0};
+	src->read (tmpBuf, 15);
 
-		// Send a tensor to the connection in compression way
-		// TODO: No compression implementation
-		void send_compressed_tensor(connection* dest, tensor* tensor)
-		{
-			char tBuf[30] = {0};
-			snprintf(tBuf, sizeof(tBuf), "%lu", tensor->size() * sizeof(*tensor->begin()) );
-			dest->write(tBuf, 30);
+	if (SYNC_VERBOSE)
+		std::cout << "Ack:" << tmpBuf << std::endl;
+}
 
-			char* tmpBuf = (char*) malloc(sizeof(float) * tensor->size());
-			std::memset(tmpBuf, '\0', sizeof(float) * tensor->size());
-			float* tmpPtr = (float*)tmpBuf;
-			for(auto j = tensor->begin(); j != tensor->end(); j++)
-			{
-				*(tmpPtr++) = *j;
-			}
+// Send an acknowledgement from the connection
+void send_ack (connection *dest, char *content) {
+	char tmpBuf[15] = {0};
+	snprintf (tmpBuf, sizeof (tmpBuf), "%s", content);
+	dest->write (tmpBuf, 15);
 
-			char* write_Ptr = tmpBuf;
-			size_t write_length = 0;
-			size_t write_max = sizeof(float) * tensor->size();
-			size_t flag = 0;
-			while(write_length + COMP_BUFFER_SIZE <= write_max) {
-				int size = dest->write(write_Ptr, COMP_BUFFER_SIZE);
+	if (SYNC_VERBOSE) {
+		std::cout << "Send ack, content is:" << tmpBuf << std::endl;
+	}
+}
 
-				if (NUM_DEBUG) {
-					unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
-					std::memcpy(fuck_num, write_Ptr, COMP_BUFFER_SIZE);
-					// std::cout << "send " << (++flag) << ": ";
-					// for (auto i : fuck_num) {
-					//     std::cout << (int) i << " ";
-					// }
-					// std::cout << "[" << size << "]" << std::endl;
-				}
+// Send a tensor to the connection
+void send_tensor (connection *dest, tensor *tensor) {
+	char tBuf[30] = {0};
+	snprintf (tBuf, sizeof (tBuf), "%lu",
+			  tensor->size() * sizeof (*tensor->begin()));
+	dest->write (tBuf, 30);
 
-				write_length += size;
-				write_Ptr += size;
-			}
+	char *tmpBuf = (char *)malloc (sizeof (float) * tensor->size());
+	float *tmpPtr = (float *)tmpBuf;
 
-			if (write_length < write_max) {
-				dest->write(write_Ptr, write_max - write_length);
-			}
+	for (auto j = tensor->begin(); j != tensor->end(); j++) {
+		* (tmpPtr++) = *j;
+	}
 
+	std::cout << dest->write (tmpBuf, sizeof (float) * tensor->size()) << std::endl;
 
-			wait_ack(dest);
-		}
-		int recieve_tensor(connection* src, tensor* container)
-		{
-			// auto epoch_time = system_clock::now();  // HPZ: Counting
+	wait_ack (dest);
+}
 
-			char sizeBuf[30] = {0};
+// Send a tensor to the connection in compression way
+// TODO: No compression implementation
+void send_compressed_tensor (connection *dest, tensor *tensor) {
+	char tBuf[30] = {0};
+	snprintf (tBuf, sizeof (tBuf), "%lu",
+			  tensor->size() * sizeof (*tensor->begin()));
+	dest->write (tBuf, 30);
 
-			src->read(sizeBuf, 30);
+	char *tmpBuf = (char *)malloc (sizeof (float) * tensor->size());
+	std::memset (tmpBuf, '\0', sizeof (float) * tensor->size());
+	float *tmpPtr = (float *)tmpBuf;
 
-			if (SYNC_VERBOSE)
-				std::cout << sizeBuf << std::endl;
-			size_t length = 0;
-			try{
-				length = atoi(sizeBuf);
-				if(SYNC_VERBOSE)
-					std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
+	for (auto j = tensor->begin(); j != tensor->end(); j++) {
+		* (tmpPtr++) = *j;
+	}
 
-			}catch(...){
-				std::cerr << "incorrect with converting" << std::endl;
-			}
+	char *write_Ptr = tmpBuf;
+	size_t write_length = 0;
+	size_t write_max = sizeof (float) * tensor->size();
+	size_t flag = 0;
 
-			try {
-				if (container->size() != (length / sizeof(*container->begin()))) {
-					std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
-					std::cerr << "Recieving size is not same as container" << std::endl;
-					sleep(100000);
-				}
-			} catch(...) {
+	while (write_length + COMP_BUFFER_SIZE <= write_max) {
+		int size = dest->write (write_Ptr, COMP_BUFFER_SIZE);
 
-			}
-
-			float* tmpBuf = (float*) malloc( sizeof(float));
-			*tmpBuf = 0;
-
-			for(auto j = container->begin(); j != container->end(); j++){
-				src->read((char*)tmpBuf, sizeof(float));
-				*j = *(tmpBuf);
-			}
-
-			network::send_ack(src, (char*)"got");
-
-			// std::cout << "(Time for bbbbbbbb) is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting //
-
-			return length;
+		if (NUM_DEBUG) {
+			unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
+			std::memcpy (fuck_num, write_Ptr, COMP_BUFFER_SIZE);
+			// std::cout << "send " << (++flag) << ": ";
+			// for (auto i : fuck_num) {
+			//     std::cout << (int) i << " ";
+			// }
+			// std::cout << "[" << size << "]" << std::endl;
 		}
 
-		int recieve_compressed_tensor(connection* src, tensor* container)
-		{
-			char sizeBuf[30];
-			src->read(sizeBuf, 30);
-			std::cout << sizeBuf << std::endl;
-			size_t length = 0;
-			try
-			{
-				length = atoi(sizeBuf);
-				if(SYNC_VERBOSE)
-					std::cout << "[!]Start recieving tensor, the size is " << length << std::endl;
-			} catch(...) {
-				std::cerr << "incorrect with converting" << std::endl;
-			}
+		write_length += size;
+		write_Ptr += size;
+	}
 
-			try {
-				if (container->size() != (length / sizeof(*container->begin()))) {
-					std::cerr << "The buffer is " << sizeBuf << ", which supposed to be " << container->size() << std::endl;
-					std::cerr << "Recieving size is not same as container" << std::endl;
-					// sleep(10000000);
-				}
-				if (length == 0) {
-					std::cerr << "Length is invalid" << std::endl;
-					return -1;
-				}
-			} catch(...) {
+	if (write_length < write_max) {
+		dest->write (write_Ptr, write_max - write_length);
+	}
 
-			}
+	wait_ack (dest);
+}
+int recieve_tensor (connection *src, tensor *container) {
+	// auto epoch_time = system_clock::now();  // HPZ: Counting
 
-			// Fix-size reading to the "deflated_buffer"
-			char deflated_buffer[length];
-			memset(deflated_buffer, '\0', length);
-			char* deflated_ptr = &deflated_buffer[0];
-			size_t read_length = length;
-			while (read_length > COMP_BUFFER_SIZE) {
-				//					    std::cout << read_length << std::endl;
-				int size = src->read(deflated_ptr, COMP_BUFFER_SIZE);
+	char sizeBuf[30] = {0};
 
-				if (NUM_DEBUG) {
-					if (size != COMP_BUFFER_SIZE) {
-						unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
-						std::memcpy(fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
-						// for (auto i : fuck_num) {
-						//     std::cout << (int) i << " ";
-						// }
-					}
-				}
+	src->read (sizeBuf, 30);
 
-				deflated_ptr += size;
-				read_length -= size;
-			}
-			if (read_length > 0) {
-				src->read(deflated_ptr, read_length);
-			}
+	if (SYNC_VERBOSE)
+		std::cout << sizeBuf << std::endl;
 
-			//TODO: Add deflation process
+	size_t length = 0;
 
-			float* tmpPtr = (float*)&deflated_buffer[0];
-			for (auto j = container->begin(); j != container->end(); j++) {
-				*j = *tmpPtr;
-				tmpPtr ++;
-			}
+	try {
+		length = atoi (sizeBuf);
 
-			network::send_ack(src, (char*)"got_comp_2");
-			return length;
+		if (SYNC_VERBOSE)
+			std::cout << "[!]Start recieving tensor, the size is " << length
+					  << std::endl;
+
+	} catch (...) {
+		std::cerr << "incorrect with converting" << std::endl;
+	}
+
+	try {
+		if (container->size() != (length / sizeof (*container->begin()))) {
+			std::cerr << "The buffer is " << sizeBuf << ", which supposed to be "
+					  << container->size() << std::endl;
+			std::cerr << "Recieving size is not same as container" << std::endl;
+			sleep (100000);
+		}
+	} catch (...) {
+	}
+
+	float *tmpBuf = (float *)malloc (sizeof (float));
+	*tmpBuf = 0;
+
+	for (auto j = container->begin(); j != container->end(); j++) {
+		src->read ((char *)tmpBuf, sizeof (float));
+		*j = * (tmpBuf);
+	}
+
+	network::send_ack (src, (char *)"got");
+
+	// std::cout << "(Time for bbbbbbbb) is " <<
+	// std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() -
+	// epoch_time).count() << std::endl;   // HPZ: Counting //
+
+	return length;
+}
+
+int recieve_compressed_tensor (connection *src, tensor *container) {
+	char sizeBuf[30];
+	src->read (sizeBuf, 30);
+	std::cout << sizeBuf << std::endl;
+	size_t length = 0;
+
+	try {
+		length = atoi (sizeBuf);
+
+		if (SYNC_VERBOSE)
+			std::cout << "[!]Start recieving tensor, the size is " << length
+					  << std::endl;
+	} catch (...) {
+		std::cerr << "incorrect with converting" << std::endl;
+	}
+
+	try {
+		if (container->size() != (length / sizeof (*container->begin()))) {
+			std::cerr << "The buffer is " << sizeBuf << ", which supposed to be "
+					  << container->size() << std::endl;
+			std::cerr << "Recieving size is not same as container" << std::endl;
+			// sleep(10000000);
 		}
 
-	} // End of Namespace network
+		if (length == 0) {
+			std::cerr << "Length is invalid" << std::endl;
+			return -1;
+		}
+	} catch (...) {
+	}
 
-} // End of Namespace Dlib
+	// Fix-size reading to the "deflated_buffer"
+	char deflated_buffer[length];
+	memset (deflated_buffer, '\0', length);
+	char *deflated_ptr = &deflated_buffer[0];
+	size_t read_length = length;
+
+	while (read_length > COMP_BUFFER_SIZE) {
+		//					    std::cout << read_length <<
+		//std::endl;
+		int size = src->read (deflated_ptr, COMP_BUFFER_SIZE);
+
+		if (NUM_DEBUG) {
+			if (size != COMP_BUFFER_SIZE) {
+				unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
+				std::memcpy (fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
+				// for (auto i : fuck_num) {
+				//     std::cout << (int) i << " ";
+				// }
+			}
+		}
+
+		deflated_ptr += size;
+		read_length -= size;
+	}
+
+	if (read_length > 0) {
+		src->read (deflated_ptr, read_length);
+	}
+
+	// TODO: Add deflation process
+
+	float *tmpPtr = (float *)&deflated_buffer[0];
+
+	for (auto j = container->begin(); j != container->end(); j++) {
+		*j = *tmpPtr;
+		tmpPtr++;
+	}
+
+	network::send_ack (src, (char *)"got_comp_2");
+	return length;
+}
+
+} // End of Namespace network
+
+} // namespace dlib
 #endif
