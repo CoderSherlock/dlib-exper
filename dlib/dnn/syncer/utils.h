@@ -4,6 +4,7 @@
 #include "../../sockets.h"
 #include "../trainer.h"
 #include <iostream>
+#include <list>
 
 #define COMP_BUFFER_SIZE 4096
 #define SYNC_VERBOSE 0
@@ -40,24 +41,64 @@ struct task {
 	std::vector<tensor *> *tensors;
 
 	task () = default;
+	task &operator= (const task &) = default;
 	task (size_t si_, bool ready_, std::vector<tensor *> *tensors_) {
 		slave_index = si_;
 		ready = ready_;
 		tensors = tensors_;
 	}
 
-	~task () = default;
+	~task () {
+		slave_index = -1;
+		ready = -1;
+
+		for (auto i : *tensors) {
+			free (i);
+		}
+	};
 }; // End of class task
 
 class task_queue {
   public:
 	task_queue () = default;
-	task_queue (const task_queue &) = default;
-	task_queue &operator= (const task_queue &) = default;
+	task_queue (const task_queue &) = delete;
+	task_queue &operator= (const task_queue &) = delete;
 	~task_queue() = default;
 
+	void add_task (task t) {
+		while (queue_lock.trylock() == 0);
+
+		queue.push_back (t);
+		queue_lock.unlock();
+	}
+
+	task pop_task() {
+		while (queue_lock.trylock() == 0);
+
+		task ret;
+
+		while (queue.empty()) {
+			while (!queue.front().ready) {
+				ret = queue.front();
+			}
+		}
+
+		queue.front().~task();
+		queue.pop_front();
+		queue_lock.unlock();
+		return ret;
+	}
+
+	bool empty() {
+		while (queue_lock.trylock() == 0);
+
+		queue_lock.unlock();
+		return false;
+	}
+
   private:
-	std::vector<task> queue;
+	std::list<task> queue;
+	mutex queue_lock;
 };
 
 namespace network {
@@ -120,7 +161,6 @@ void send_compressed_tensor (connection *dest, tensor *tensor) {
 	char *write_Ptr = tmpBuf;
 	size_t write_length = 0;
 	size_t write_max = sizeof (float) * tensor->size();
-	size_t flag = 0;
 
 	while (write_length + COMP_BUFFER_SIZE <= write_max) {
 		int size = dest->write (write_Ptr, COMP_BUFFER_SIZE);
