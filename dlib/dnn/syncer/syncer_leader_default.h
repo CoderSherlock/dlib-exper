@@ -43,7 +43,7 @@ int dnn_syncer<trainer_type>::get_running_slaves_num() {
 	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to get running_slaves_num.");
 	int ret = 0;
 
-	for (int i = 0; i < slaves_list.size(); i++) {
+	for (int i = 0; i < this->slaves_list.size(); i++) {
 		if (this->slaves_status[i] == 1)
 			ret ++;
 	}

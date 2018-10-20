@@ -159,12 +159,15 @@ int main (int argc, char **argv) try {
 #if !ASYNC
 	syncer.init_slaves();
 #else
+	syncer.init_slaves();	// TODO Need a new listener function
+	syncer.init_reciever_pool();
 #endif
 
 	std::cout << "Finished Initialization, now start training procedures" << std::endl;
 	syncer.print_slaves_status();
 	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
 
+#if !ASYNC
 	int epoch = 0, batch = 0;
 	int mark = 0;
 
@@ -199,6 +202,9 @@ int main (int argc, char **argv) try {
 			}
 		}
 	}
+#else
+	syncer.sync();
+#endif
 
 	training.accuracy (net);
 	testing.accuracy (net);

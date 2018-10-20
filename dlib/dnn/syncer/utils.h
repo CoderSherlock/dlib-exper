@@ -38,11 +38,11 @@ struct task {
   public:
 	size_t slave_index = -1;
 	bool ready = 0;
-	std::vector<tensor *> *tensors;
+	std::vector<resizable_tensor> tensors;
 
 	task () = default;
 	task &operator= (const task &) = default;
-	task (size_t si_, bool ready_, std::vector<tensor *> *tensors_) {
+	task (size_t si_, bool ready_, std::vector<resizable_tensor> tensors_) {
 		slave_index = si_;
 		ready = ready_;
 		tensors = tensors_;
@@ -50,11 +50,7 @@ struct task {
 
 	~task () {
 		slave_index = -1;
-		ready = -1;
-
-		for (auto i : *tensors) {
-			free (i);
-		}
+		ready = 0;
 	};
 }; // End of class task
 
@@ -96,7 +92,7 @@ class task_queue {
 		return false;
 	}
 
-  private:
+  // private:
 	std::list<task> queue;
 	mutex queue_lock;
 };

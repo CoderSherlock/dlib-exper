@@ -45,9 +45,6 @@ class dnn_syncer {
 	device master;
 	connection *master_conn = NULL;
 
-	std::vector<device>			slaves_list;
-	std::vector<connection *>	slaves_conns;
-	std::vector<slaveStatus>	slaves_status;
 
 	int verbose = 0;
 	int num_debug = 1;
@@ -59,10 +56,12 @@ class dnn_syncer {
 	dnn_syncer (const dnn_syncer &) = default;
 	dnn_syncer &operator= (const dnn_syncer &) = default;
 
+	[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]]
 	dnn_syncer (int ism) {
 		ismaster = ism;
 	}
 
+	[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]]
 	dnn_syncer (trainer_type *trainer, int ism) {
 		this->trainer = trainer;
 		this->ismaster = ism;
@@ -161,14 +160,14 @@ class dnn_syncer {
 
 	void update (std::vector<tensor *> &updated);
 
+	std::vector<device>			slaves_list;
+	std::vector<connection *>	slaves_conns;
+	std::vector<slaveStatus>	slaves_status;
+
 	// TODO
 	dnn_syncer &operator<< (std::ostream &out) {
 		out << trainer << std::endl;
 		out << ismaster << std::endl;
-
-		if (ismaster)
-			out << slaves_list.size() << std::endl;
-
 	}
 
 };
@@ -214,6 +213,7 @@ class dnn_leader : public dnn_syncer<trainer_type> {
 	void update_gradients(std::vector<tensor*> & gradients);
 
 	void sn_sync();
+
 };
 
 template<typename trainer_type>
@@ -235,9 +235,18 @@ class dnn_async_leader : public dnn_leader<trainer_type> {
 
 	void init_reciever_pool();
 
+	int recieve_gradients_from_one (int slave_index, std::vector<resizable_tensor> &cli_tensors);
+
 	void sync();
 
   private:
+	void async_thread(int);
+
+	std::vector<std::thread *> recievers;
+
+	std::vector<std::vector<resizable_tensor>> send_back_paras;
+	std::vector<int> send_back_flags;
+
 	task_queue tq;
 };
 
