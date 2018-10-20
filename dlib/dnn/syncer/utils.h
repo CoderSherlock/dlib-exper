@@ -48,10 +48,7 @@ struct task {
 		tensors = tensors_;
 	}
 
-	~task () {
-		slave_index = -1;
-		ready = 0;
-	};
+	~task () = default;
 }; // End of class task
 
 class task_queue {
@@ -92,7 +89,7 @@ class task_queue {
 		return false;
 	}
 
-  // private:
+	// private:
 	std::list<task> queue;
 	mutex queue_lock;
 };

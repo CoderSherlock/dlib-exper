@@ -149,13 +149,13 @@ void dnn_leader<trainer_type>::send_parameters (connection *slave) {
 	tensors.resize (this->trainer->num_computational_layers);
 
 	visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t i, tensor & t) {
-		std::cout<<"SP get parameteres from" << &t << std::endl;
+		std::cout << "SP get parameteres from" << &t << std::endl;
 		tensors[i] = &t;
 	});
 
 	for (size_t i = 0; i < tensors.size(); i++) {
 		if (tensors[i]->size() != 0) {
-			print_tensor(tensors[i], 10);
+			print_tensor (tensors[i], 10);
 			network::send_compressed_tensor (slave, tensors[i]);
 		}
 	}

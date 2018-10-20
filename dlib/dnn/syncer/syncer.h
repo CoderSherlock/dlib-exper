@@ -56,12 +56,12 @@ class dnn_syncer {
 	dnn_syncer (const dnn_syncer &) = default;
 	dnn_syncer &operator= (const dnn_syncer &) = default;
 
-	[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]]
+	[[deprecated ("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]]
 	dnn_syncer (int ism) {
 		ismaster = ism;
 	}
 
-	[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]]
+	[[deprecated ("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]]
 	dnn_syncer (trainer_type *trainer, int ism) {
 		this->trainer = trainer;
 		this->ismaster = ism;
@@ -210,7 +210,7 @@ class dnn_leader : public dnn_syncer<trainer_type> {
 
 	void recieve_gradients_parallism (std::vector<std::vector<resizable_tensor>> &all_tensors);
 
-	void update_gradients(std::vector<tensor*> & gradients);
+	void update_gradients (std::vector<tensor *> &gradients);
 
 	void sn_sync();
 
@@ -237,10 +237,12 @@ class dnn_async_leader : public dnn_leader<trainer_type> {
 
 	int recieve_gradients_from_one (int slave_index, std::vector<resizable_tensor> &cli_tensors);
 
+	void send_parameters (int slave_index, std::vector<resizable_tensor> &parameters);
+
 	void sync();
 
   private:
-	void async_thread(int);
+	void async_thread (int);
 
 	std::vector<std::thread *> recievers;
 

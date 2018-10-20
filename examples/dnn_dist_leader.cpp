@@ -133,7 +133,7 @@ int main (int argc, char **argv) try {
 #if !ASYNC
 	dnn_leader<trainer_type> syncer (&trainer, 0);
 #else
-	dnn_async_leader<trainer_type> syncer(&trainer, 0);
+	dnn_async_leader<trainer_type> syncer (&trainer, 0);
 #endif
 	syncer.set_this_device (me);
 	syncer.set_isMaster (1);
@@ -202,6 +202,7 @@ int main (int argc, char **argv) try {
 			}
 		}
 	}
+
 #else
 	syncer.sync();
 #endif
