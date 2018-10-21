@@ -16,7 +16,8 @@ void dnn_async_leader<trainer_type>::init_reciever_pool() {
 	});
 
 	this->send_back_paras.resize (this->get_running_slaves_num());
-	this->send_back_flags.resize (this->get_running_slaves_num());
+	// this->send_back_flags.resize (this->get_running_slaves_num());
+	this->send_back_flags = new int[this->get_running_slaves_num()];
 
 	for (size_t i = 0; i < this->send_back_paras.size(); i++) {
 		this->send_back_paras[i].resize (this->trainer->num_computational_layers);
@@ -56,6 +57,8 @@ void dnn_async_leader<trainer_type>::async_thread (int slave_index) {
 
 	while (1) {
 		this->recieve_gradients_from_one (slave_index, gradients);
+		if (this->slaves_status[slave_index] != slaveStatus::Running)
+			break;
 		std::cout << "Recieved from slave " << slave_index << std::endl;
 
 		task t (slave_index, 1, gradients);
@@ -74,10 +77,16 @@ template<typename trainer_type>
 int dnn_async_leader<trainer_type>::recieve_gradients_from_one (int slave_index, std::vector<resizable_tensor> &cli_tensors) {
 	// std::cout << slave_index << ":" << &this->slaves_conns << std::endl;
 
-	for (size_t i = 0; i < cli_tensors.size(); i++) {
-		if (cli_tensors[i].size() != 0) {
-			network::recieve_compressed_tensor (this->slaves_conns[slave_index], &cli_tensors[i]);
+	try {
+		for (size_t i = 0; i < cli_tensors.size(); i++) {
+			if (cli_tensors[i].size() != 0) {
+				network::recieve_compressed_tensor (this->slaves_conns[slave_index], &cli_tensors[i]);
+			}
 		}
+	} catch (...) {
+		std::cout << "It seems that slave " << slave_index << " closed" << std::endl;
+		this->slaves_status[slave_index] = slaveStatus::NotConn;
+		close_gracefully(this->slaves_conns[slave_index], 1);
 	}
 
 	return 1;
@@ -141,7 +150,7 @@ void dnn_async_leader<trainer_type>::sync() {
 				while (this->trainer->synchronization_status != 3) { }
 
 				visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t k, tensor & t) {
-					std::cout << "SP get parameteres from" << &t << std::endl;
+					// std::cout << "SP get parameteres from" << &t << std::endl;
 					this->send_back_paras[ (*i).slave_index][k] = t;
 				});
 

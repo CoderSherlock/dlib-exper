@@ -47,7 +47,7 @@ class dnn_syncer {
 
 
 	int verbose = 0;
-	int num_debug = 1;
+	int num_debug = 0;
 	int exper = 0;
 
 
@@ -247,7 +247,7 @@ class dnn_async_leader : public dnn_leader<trainer_type> {
 	std::vector<std::thread *> recievers;
 
 	std::vector<std::vector<resizable_tensor>> send_back_paras;
-	std::vector<int> send_back_flags;
+	volatile int* send_back_flags;
 
 	task_queue tq;
 };

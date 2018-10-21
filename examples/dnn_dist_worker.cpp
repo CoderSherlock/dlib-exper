@@ -148,6 +148,8 @@ int main (int argc, char **argv) try {
 	int mark = 0;
 	auto time = 0;
 
+	sleep ((unsigned int) (me.number % 2) * 10);
+
 	while (true) {
 		mark += 1;
 		auto epoch_time = system_clock::now();  // HPZ: Counting
@@ -177,7 +179,6 @@ int main (int argc, char **argv) try {
 		// accuracy(net, local_training_images, local_training_labels);
 		// accuracy(net, testing_images, testing_labels);
 
-		sleep ((unsigned int) me.number);
 		auto sync_time = system_clock::now();  // HPZ: Counting
 		syncer.sn_sync();
 		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
@@ -199,20 +200,18 @@ int main (int argc, char **argv) try {
 		// accuracy(net, testing_images, testing_labels);
 		//
 
-		if (ismaster) {
-			if (trainer.learning_rate <= 0.001) {
-				std::cout << "---------------------------" << std::endl;
-				std::cout << "|Exit because l_rate      |" << std::endl;
-				std::cout << "---------------------------" << std::endl;
-				break;
-			}
+		if (trainer.learning_rate <= 0.001) {
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "|Exit because l_rate      |" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			break;
+		}
 
-			if (epoch >= 60) {
-				std::cout << "---------------------------" << std::endl;
-				std::cout << "|Exit because 60 epochs   |" << std::endl;
-				std::cout << "---------------------------" << std::endl;
-				break;
-			}
+		if (epoch >= 60) {
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "|Exit because 60 epochs   |" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			break;
 		}
 
 
@@ -220,10 +219,11 @@ int main (int argc, char **argv) try {
 
 	// trainer.train(training_images, training_labels);
 
-	local_training.accuracy (net);
-	testing.accuracy (net);
+	// local_training.accuracy (net);
+	// testing.accuracy (net);
 	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
+	sleep((unsigned int) 3600);
 
 	// At this point our net object should have learned how to classify MNIST images.  But
 	// before we try it out let's save it to disk.  Note that, since the trainer has been

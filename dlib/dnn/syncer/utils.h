@@ -37,7 +37,7 @@ enum slaveStatus {
 struct task {
   public:
 	size_t slave_index = -1;
-	bool ready = 0;
+	volatile bool ready = 0;
 	std::vector<resizable_tensor> tensors;
 
 	task () = default;
