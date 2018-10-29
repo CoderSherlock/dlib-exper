@@ -147,7 +147,7 @@ void dnn_async_leader<trainer_type>::sync() {
 				this->trainer->status_lock.unlock();
 
 				// Wait for result
-				while (this->trainer->synchronization_status != 3) { }
+				while (this->trainer->synchronization_status != 4) { }
 
 				visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t k, tensor & t) {
 					// std::cout << "SP get parameteres from" << &t << std::endl;

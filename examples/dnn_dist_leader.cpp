@@ -154,7 +154,7 @@ int main (int argc, char **argv) try {
 
 	trainer.synchronization_status = 2;
 
-	while (trainer.synchronization_status != 3) { }
+	while (trainer.synchronization_status != 4) { }
 
 #if !ASYNC
 	syncer.init_slaves();

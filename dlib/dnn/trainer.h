@@ -901,7 +901,8 @@ namespace dlib
 
 					while(synchronization_status != 2 && synchronization_status != 3) {}
 					if (synchronization_status == 3) {
-						continue;
+						// continue;
+						goto end;
 					}
 					// std::cout << "[trainer]: Start to update" << std::endl;
 				}					
@@ -940,6 +941,7 @@ namespace dlib
                 // have a "budget" that prevents us from calling
                 // count_steps_without_decrease() every iteration.  We do this because
                 // it can be expensive to compute when previous_loss_values is large.
+end:
 				if (gradient_check_budget > iter_without_progress_thresh && learning_rate_shrink != 1)
 				{
                     gradient_check_budget = 0;
@@ -982,9 +984,9 @@ namespace dlib
 				if(isDistributed)
 				{
 					while(status_lock.trylock() == 0);
-					if (synchronization_status != 2)
+					if (synchronization_status != 2 && synchronization_status != 3)
 						std::cout << "Something wrong with sync lock: current: " << synchronization_status << "\t Going to set: 3" << std::endl;
-					synchronization_status = 3;
+					synchronization_status = 4;
 					// std::cout << "[trainer]: one job completed" << std::endl;
 					status_lock.unlock();
 				}
@@ -1006,7 +1008,7 @@ namespace dlib
 
 		const mutex status_lock;
 		bool isDistributed = 0;
-		volatile int synchronization_status = 0;
+		volatile int synchronization_status = 4;
 	private:
 
         const static long string_pad = 11;

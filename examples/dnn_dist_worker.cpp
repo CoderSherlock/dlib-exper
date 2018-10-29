@@ -151,7 +151,10 @@ int main (int argc, char **argv) try {
 	sleep ((unsigned int) (me.number % 2) * 10);
 
 	while (true) {
+		while (trainer.synchronization_status != 4) {};
+
 		mark += 1;
+
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 
 		while (trainer.status_lock.trylock() == 0);
@@ -187,7 +190,7 @@ int main (int argc, char **argv) try {
 
 		// Wait for all devices send back to their paramaters
 
-		while (trainer.synchronization_status != 3) {} //std::cout <<"wait to update"<<std::endl;}
+		while (trainer.synchronization_status != 4) {} //std::cout <<"wait to update"<<std::endl;}
 
 		std::cout << "Finish batch " << batch++ << std::endl;
 		std::cout << "Time for batch is "
@@ -196,7 +199,7 @@ int main (int argc, char **argv) try {
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		local_training.accuracy (net);
+		// local_training.accuracy (net);
 		// accuracy(net, testing_images, testing_labels);
 		//
 
@@ -223,7 +226,7 @@ int main (int argc, char **argv) try {
 	// testing.accuracy (net);
 	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
-	sleep((unsigned int) 3600);
+	sleep ((unsigned int) 3600);
 
 	// At this point our net object should have learned how to classify MNIST images.  But
 	// before we try it out let's save it to disk.  Note that, since the trainer has been
