@@ -8,7 +8,7 @@
 
 #define COMP_BUFFER_SIZE 4096
 #define SYNC_VERBOSE 0
-#define NUM_DEBUG 0
+#define NUM_DEBUG 1
 
 namespace dlib {
 
@@ -265,27 +265,24 @@ int recieve_compressed_tensor (connection *src, tensor *container) {
 	char *deflated_ptr = &deflated_buffer[0];
 	size_t read_length = length;
 
-	while (read_length > COMP_BUFFER_SIZE) {
-		//					    std::cout << read_length <<
-		//std::endl;
-		int size = src->read (deflated_ptr, COMP_BUFFER_SIZE);
+	int size = 0;
+
+	while (read_length > 0) {
+		size = src->read (deflated_ptr, (read_length < COMP_BUFFER_SIZE) ? read_length : COMP_BUFFER_SIZE);
 
 		if (NUM_DEBUG) {
-			if (size != COMP_BUFFER_SIZE) {
-				unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
-				std::memcpy (fuck_num, deflated_ptr, COMP_BUFFER_SIZE);
-				// for (auto i : fuck_num) {
-				//     std::cout << (int) i << " ";
-				// }
+			unsigned char fuck_num[COMP_BUFFER_SIZE] = {0};
+			std::memcpy (fuck_num, deflated_ptr, size);
+
+			std::cout << "====>" << size << "<====";
+			for (auto i : fuck_num) {
+				std::cout << (int) i << " ";
 			}
+			std::cout << "\n\n\n";
 		}
 
 		deflated_ptr += size;
 		read_length -= size;
-	}
-
-	if (read_length > 0) {
-		src->read (deflated_ptr, read_length);
 	}
 
 	// TODO: Add deflation process
