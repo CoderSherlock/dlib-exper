@@ -241,13 +241,17 @@ class dnn_async_leader : public dnn_leader<trainer_type> {
 
 	void sync();
 
+	int ending_time;
+
   private:
+	std::vector<int> counter;
+
 	void async_thread (int);
 
 	std::vector<std::thread *> recievers;
 
 	std::vector<std::vector<resizable_tensor>> send_back_paras;
-	volatile int* send_back_flags;
+	volatile int *send_back_flags;
 
 	task_queue tq;
 };

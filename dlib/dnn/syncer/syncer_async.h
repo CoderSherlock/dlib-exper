@@ -29,6 +29,13 @@ void dnn_async_leader<trainer_type>::init_reciever_pool() {
 		this->send_back_flags[i] = 0;
 	}
 
+	// Just for exper
+	this->counter.resize (this->get_running_slaves_num());
+
+	for (auto i : this->counter) {
+		i = 0;
+	}
+
 	// Initialize reciever threads
 	this->recievers.resize (this->get_running_slaves_num());
 
@@ -57,8 +64,10 @@ void dnn_async_leader<trainer_type>::async_thread (int slave_index) {
 
 	while (1) {
 		this->recieve_gradients_from_one (slave_index, gradients);
+
 		if (this->slaves_status[slave_index] != slaveStatus::Running)
 			break;
+
 		std::cout << "Recieved from slave " << slave_index << std::endl;
 
 		task t (slave_index, 1, gradients);
@@ -70,6 +79,12 @@ void dnn_async_leader<trainer_type>::async_thread (int slave_index) {
 		this->send_parameters (slave_index, this->send_back_paras[slave_index]);
 
 		this->send_back_flags[slave_index] = 0;
+
+		// Just for exper
+		this->counter[slave_index] ++;
+
+		if (this->counter[slave_index] >= this->ending_time)
+			break;
 	}
 };
 
@@ -86,7 +101,7 @@ int dnn_async_leader<trainer_type>::recieve_gradients_from_one (int slave_index,
 	} catch (...) {
 		std::cout << "It seems that slave " << slave_index << " closed" << std::endl;
 		this->slaves_status[slave_index] = slaveStatus::NotConn;
-		close_gracefully(this->slaves_conns[slave_index], 1);
+		close_gracefully (this->slaves_conns[slave_index], 1);
 	}
 
 	return 1;
@@ -166,6 +181,17 @@ void dnn_async_leader<trainer_type>::sync() {
 			}
 		}
 
+		int flag = 1;
+
+		for (auto i : this->counter) {
+			if (i < this->ending_time) {
+				flag = 0;
+				break;
+			}
+		}
+
+		if (flag)
+			break;
 
 	}
 

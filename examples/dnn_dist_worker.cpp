@@ -148,7 +148,7 @@ int main (int argc, char **argv) try {
 	int mark = 0;
 	auto time = 0;
 
-	sleep ((unsigned int) (me.number % 2) * 10);
+	// sleep ((unsigned int) (me.number % 2) * 10);
 
 	while (true) {
 		while (trainer.synchronization_status != 4) {};
@@ -210,7 +210,7 @@ int main (int argc, char **argv) try {
 			break;
 		}
 
-		if (epoch >= 60) {
+		if (epoch >= 30) {
 			std::cout << "---------------------------" << std::endl;
 			std::cout << "|Exit because 60 epochs   |" << std::endl;
 			std::cout << "---------------------------" << std::endl;

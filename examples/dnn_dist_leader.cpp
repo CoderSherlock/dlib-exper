@@ -168,10 +168,10 @@ int main (int argc, char **argv) try {
 	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
 
 #if !ASYNC
+	auto time = 0;
 	int epoch = 0, batch = 0;
 	int mark = 0;
 
-	auto time = 0;
 
 	while (1) {
 		mark += 1;
@@ -202,14 +202,21 @@ int main (int argc, char **argv) try {
 			}
 		}
 	}
+	std::cout << "All time: " << time << std::endl;
 
 #else
+	auto real_time = system_clock::now();
+	auto print_time = 0;
+	syncer.ending_time = ceil((float)training.getData().size()/syncer.get_running_slaves_num()/128)*30;
+	std::cout << syncer.ending_time << std::endl;
+	// sleep((unsigned int)30);
 	syncer.sync();
+	print_time = std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - real_time).count();
+	std::cout << "All time: " << print_time << std::endl;
 #endif
 
 	training.accuracy (net);
 	testing.accuracy (net);
-	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
 
 	net.clean();
