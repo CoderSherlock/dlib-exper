@@ -375,7 +375,7 @@ void dnn_leader<trainer_type>::sn_sync() {
 	// std::cout << "[trainer]: train completed" << std::endl;
 	this->trainer->status_lock.unlock();
 
-	while (this->trainer->synchronization_status != 3) { }
+	while (this->trainer->synchronization_status != 4) { }
 
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

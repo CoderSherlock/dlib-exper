@@ -26,7 +26,7 @@
 
 #include "dnn_dist_data.h"
 
-#define ASYNC 1
+#define ASYNC 0
 
 using namespace std;
 using namespace dlib;
@@ -171,6 +171,7 @@ int main (int argc, char **argv) try {
 	auto time = 0;
 	int epoch = 0, batch = 0;
 	int mark = 0;
+	int ending = ceil((float)training.getData().size()/syncer.get_running_slaves_num()/128)*30;
 
 
 	while (1) {
@@ -180,6 +181,7 @@ int main (int argc, char **argv) try {
 		// epoch += trainer.train_one_batch(local_training_images, local_training_labels);
 
 		syncer.sn_sync();
+		epoch ++;
 
 		std::cout << "Finish batch " << batch++ << std::endl;
 		std::cout << "Time for batch is "
@@ -194,9 +196,9 @@ int main (int argc, char **argv) try {
 				break;
 			}
 
-			if (epoch >= 60) {
+			if (epoch >= ending) {
 				std::cout << "---------------------------" << std::endl;
-				std::cout << "|Exit because 60 epochs   |" << std::endl;
+				std::cout << "|Exit because 30 epochs   |" << std::endl;
 				std::cout << "---------------------------" << std::endl;
 				break;
 			}

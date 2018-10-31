@@ -212,7 +212,7 @@ int main (int argc, char **argv) try {
 
 		if (epoch >= 30) {
 			std::cout << "---------------------------" << std::endl;
-			std::cout << "|Exit because 60 epochs   |" << std::endl;
+			std::cout << "|Exit because 30 epochs   |" << std::endl;
 			std::cout << "---------------------------" << std::endl;
 			break;
 		}
