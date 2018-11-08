@@ -26,7 +26,7 @@
 
 #include "dnn_dist_data.h"
 
-#define ASYNC 0
+#define ASYNC 1
 
 using namespace std;
 using namespace dlib;
@@ -171,7 +171,7 @@ int main (int argc, char **argv) try {
 	auto time = 0;
 	int epoch = 0, batch = 0;
 	int mark = 0;
-	int ending = ceil((float)training.getData().size()/syncer.get_running_slaves_num()/128)*30;
+	int ending = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 30;
 
 
 	while (1) {
@@ -204,12 +204,13 @@ int main (int argc, char **argv) try {
 			}
 		}
 	}
+
 	std::cout << "All time: " << time << std::endl;
 
 #else
 	auto real_time = system_clock::now();
 	auto print_time = 0;
-	syncer.ending_time = ceil((float)training.getData().size()/syncer.get_running_slaves_num()/128)*30;
+	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 60;
 	std::cout << syncer.ending_time << std::endl;
 	// sleep((unsigned int)30);
 	syncer.sync();

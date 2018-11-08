@@ -10,9 +10,19 @@ void dnn_worker<trainer_type>::sn_sync() {
 
 	std::vector<resizable_tensor> updated;
 
+	auto sync_time = system_clock::now();
+
 	this->send_gradients_to_master();
 
+	if(this->verbose)
+		std::cout << "(send time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
+	sync_time = system_clock::now();
+
 	this->recieve_updated_parameters (updated);
+
+	if(this->verbose)
+		std::cout << "(recv time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
+	sync_time = system_clock::now();
 
 	std::vector<tensor *> temp (this->trainer->num_computational_layers);
 
@@ -27,6 +37,9 @@ void dnn_worker<trainer_type>::sn_sync() {
 	}
 
 	this->update (temp);
+
+	if(this->verbose)
+		std::cout << "(update time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
 
 	while (this->trainer->status_lock.trylock() == 0);
 

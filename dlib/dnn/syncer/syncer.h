@@ -46,7 +46,7 @@ class dnn_syncer {
 	connection *master_conn = NULL;
 
 
-	int verbose = 0;
+	int verbose = 1;
 	int num_debug = 0;
 	int exper = 0;
 
