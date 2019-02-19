@@ -26,7 +26,7 @@
 
 #include "dnn_dist_data.h"
 
-#define ASYNC 1
+#define ASYNC 0
 
 using namespace std;
 using namespace dlib;
@@ -67,7 +67,6 @@ int main (int argc, char **argv) try {
 	int ismaster = 1;
 	device me;
 	device master;
-	int slave_number;
 
 	std::vector<device> slave_list;
 
@@ -121,9 +120,9 @@ int main (int argc, char **argv) try {
 	trainer.set_mini_batch_size (128);
 	trainer.be_verbose();
 
-	char sync_filename[30];
-	sprintf (sync_filename, "backup.%d.mm", me.number);
-	trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
+	// char sync_filename[30];
+	// sprintf (sync_filename, "backup.%d.mm", me.number);
+	// trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
 
 	/*
 	 * HPZ: Setup synchronized protocol and test for the connection availablitiy.

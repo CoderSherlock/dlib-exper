@@ -65,18 +65,10 @@ int main (int argc, char **argv) try {
 	int ismaster = 0;
 	device me;
 	device master;
-	int slave_number;
 
 	std::vector<device> slave_list;
 
-	me.ip = argv[1];
-	me.port = atoi (argv[2]);
-	me.number = atoi (argv[3]);
-
-	// Print self information
-	std::cout << "Local Machine info:\n";
-	std::cout << "slave" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
-
+	me.number = atoi (argv[1]);
 
 	for (int i = 1; i < argc; i++) {
 		if (strcmp (argv[i], "-d") == 0) {
@@ -92,6 +84,12 @@ int main (int argc, char **argv) try {
 
 	// Get slaves
 	slave_list = loadSlaves (slave_path);
+	me.ip = slave_list[me.number].ip;
+	me.port = slave_list[me.number].port;
+
+	// Print self information
+	std::cout << "Local Machine info:\n";
+	std::cout << "slave" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
 
 	// Get data
 	dataset<matrix<unsigned char>, unsigned long> training (load_mnist_training_data, data_path);
@@ -124,9 +122,9 @@ int main (int argc, char **argv) try {
 	trainer.set_mini_batch_size (128);
 	trainer.be_verbose();
 
-	char sync_filename[30];
-	sprintf (sync_filename, "backup.%d.mm", me.number);
-	trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
+	// char sync_filename[30];
+	// sprintf (sync_filename, "backup.%d.mm", me.number);
+	// trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
 
 	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	using trainer_type = dnn_trainer<net_type>;
@@ -210,7 +208,7 @@ int main (int argc, char **argv) try {
 			break;
 		}
 
-		if (epoch >= 60) {
+		if (epoch >= 30) {
 			std::cout << "---------------------------" << std::endl;
 			std::cout << "|Exit because 30 epochs   |" << std::endl;
 			std::cout << "---------------------------" << std::endl;

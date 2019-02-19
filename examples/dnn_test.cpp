@@ -142,15 +142,17 @@ int main(int argc, char** argv) try
 	trainer.set_min_learning_rate(0.00001);
 	trainer.set_mini_batch_size(128);
 	trainer.be_verbose(); 
+
 	// Since DNN training can take a long time, we can ask the trainer to save its state to
 	// a file named "mnist_sync" every 20 seconds.  This way, if we kill this program and
 	// start it again it will begin where it left off rather than restarting the training
 	// from scratch.  This is because, when the program restarts, this call to
 	// set_synchronization_file() will automatically reload the settings from mnist_sync if
 	// the file exists.
-	char sync_filename[30];
-	sprintf(sync_filename, "backup.%d.mm", 1);
-	trainer.set_synchronization_file(sync_filename, std::chrono::seconds(20));
+	// char sync_filename[30];
+	// sprintf(sync_filename, "backup.%d.mm", 1);
+	// sleep((unsigned int) 20);
+	// trainer.set_synchronization_file(sync_filename, std::chrono::seconds(20));
 	// Finally, this line begins training.  By default, it runs SGD with our specified
 	// learning rate until the loss stops decreasing.  Then it reduces the learning rate by
 	// a factor of 10 and continues running until the loss stops decreasing again.  It will
@@ -203,9 +205,11 @@ int main(int argc, char** argv) try
 		std::cout << "Finish epoch " << epoch++ << std::endl;
 		std::cout << "Time for Epoch is " 
 			<< std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl;   // HPZ: Counting
-		// accuracy(net, local_training_images, local_training_labels);
-		// accuracy(net, testing_images, testing_labels);
 		// std::cout << trainer << std::endl;
+		
+		if (epoch % 20 == 0) {
+			accuracy(net, local_training_images, local_training_labels);
+		}
 
 		if (trainer.learning_rate <= 0.00001)
 			break;
