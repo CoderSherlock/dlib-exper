@@ -178,9 +178,11 @@ int main (int argc, char **argv) try {
 		// std::cout << "[dnn_master]: start to sync" << std::endl;
 
 		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
+
 		// std::cout << "[Before]" << std::endl;
-		// accuracy(net, local_training_images, local_training_labels);
-		// accuracy(net, testing_images, testing_labels);
+		// training.accuracy (net);
+		// testing.accuracy (net);
+		// sleep((unsigned int)5);
 
 		auto sync_time = system_clock::now();  // HPZ: Counting
 		syncer.sn_sync();
@@ -198,19 +200,19 @@ int main (int argc, char **argv) try {
 		time += std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count();
 
 		std::cout << trainer.learning_rate << std::endl;
-		// std::cout << "[After]" << std::endl;
-		// local_training.accuracy (net);
-		// accuracy(net, testing_images, testing_labels);
-		//
+		std::cout << "[After]" << std::endl;
+		training.accuracy (net);
+		testing.accuracy (net);
+		sleep((unsigned int)5);
 
 		if (trainer.learning_rate <= 0.001) {
 			std::cout << "---------------------------" << std::endl;
 			std::cout << "|Exit because l_rate      |" << std::endl;
 			std::cout << "---------------------------" << std::endl;
-			break;
+			// break;
 		}
 
-		if (epoch >= 60) {
+		if (epoch >= 600) {
 			std::cout << "---------------------------" << std::endl;
 			std::cout << "|Exit because 30 epochs   |" << std::endl;
 			std::cout << "---------------------------" << std::endl;

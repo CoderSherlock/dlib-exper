@@ -64,10 +64,8 @@ int main (int argc, char **argv) try {
 	char *data_path;					// Training & Testing data
 	char *slave_path;					// File contains all slave ip and port information
 
-	int ismaster = 1;
 	device me;
 	device master;
-	int slave_number;
 
 	std::vector<device> slave_list;
 
@@ -138,7 +136,7 @@ int main (int argc, char **argv) try {
 	syncer.set_this_device (me);
 	syncer.set_isMaster (1);
 
-	for (int i = 0; i < slave_list.size(); i++) {
+	for (size_t i = 0; i < slave_list.size(); i++) {
 		syncer.add_slave (slave_list[i]);
 	}
 
@@ -188,6 +186,10 @@ int main (int argc, char **argv) try {
 				  << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
 		time += std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count();
 
+		training.accuracy (net);
+		testing.accuracy (net);
+		sleep((unsigned int)30);
+
 		if (ismaster) {
 			if (trainer.learning_rate <= 0.001) {
 				std::cout << "---------------------------" << std::endl;
@@ -210,7 +212,7 @@ int main (int argc, char **argv) try {
 #else
 	auto real_time = system_clock::now();
 	auto print_time = 0;
-	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 60;
+	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 600;
 	std::cout << syncer.ending_time << std::endl;
 	// sleep((unsigned int)30);
 	syncer.sync();
