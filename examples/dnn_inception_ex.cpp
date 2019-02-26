@@ -27,6 +27,8 @@
 #include <iostream>
 #include <dlib/data_io.h>
 
+#include "dnn_dist_data.h"
+
 using namespace std;
 using namespace dlib;
 
@@ -74,11 +76,10 @@ int main(int argc, char** argv) try
     }
 
 
-    std::vector<matrix<unsigned char>> training_images;
-    std::vector<unsigned long>         training_labels;
-    std::vector<matrix<unsigned char>> testing_images;
-    std::vector<unsigned long>         testing_labels;
-    load_mnist_dataset(argv[1], training_images, training_labels, testing_images, testing_labels);
+	char* data_path = argv[1];
+	dataset<matrix<unsigned char>, unsigned long> training (load_mnist_training_data, data_path);
+	dataset<matrix<unsigned char>, unsigned long> testing (load_mnist_testing_data, data_path);
+	training = training.split (0, 1000);
 
 
     // Make an instance of our inception network.
@@ -99,43 +100,10 @@ int main(int argc, char** argv) try
 	
 	while(1){
 
-		trainer.train_one_epoch(training_images, training_labels);
+		trainer.train_one_epoch(training.getData(), training.getLabel());
 
-		
+		training.accuracy(net);
 
-
-		std::vector<unsigned long> predicted_labels = net(training_images);
-		int num_right = 0;
-		int num_wrong = 0;
-		// And then let's see if it classified them correctly.
-		for (size_t i = 0; i < training_images.size(); ++i)
-		{
-			if (predicted_labels[i] == training_labels[i])
-				++num_right;
-			else
-				++num_wrong;
-			
-		}
-		cout << "training num_right: " << num_right << endl;
-		cout << "training num_wrong: " << num_wrong << endl;
-		cout << "training accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
-
-		// Let's also see if the network can correctly classify the testing images.
-		// Since MNIST is an easy dataset, we should see 99% accuracy.
-		predicted_labels = net(testing_images);
-		num_right = 0;
-		num_wrong = 0;
-		for (size_t i = 0; i < testing_images.size(); ++i)
-		{
-			if (predicted_labels[i] == testing_labels[i])
-				++num_right;
-			else
-				++num_wrong;
-			
-		}
-		cout << "testing num_right: " << num_right << endl;
-		cout << "testing num_wrong: " << num_wrong << endl;
-		cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
 
 		if(trainer.learning_rate <= 0.00001)
 			break;
