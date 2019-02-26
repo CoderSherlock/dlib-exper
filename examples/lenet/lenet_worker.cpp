@@ -68,13 +68,9 @@ int main (int argc, char **argv) try {
 
 	std::vector<device> slave_list;
 
-<<<<<<< HEAD:examples/dnn_dist_worker.cpp
-	me.number = atoi (argv[1]);
-=======
 	me.ip = argv[1];
 	me.port =atoi (argv[2]);
 	me.number = atoi (argv[3]);
->>>>>>> dev-x86:examples/lenet/lenet_worker.cpp
 
 	for (int i = 1; i < argc; i++) {
 		if (strcmp (argv[i], "-d") == 0) {
