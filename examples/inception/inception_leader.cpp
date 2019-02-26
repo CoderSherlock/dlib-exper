@@ -27,10 +27,31 @@
 #include <iostream>
 #include <dlib/data_io.h>
 
-#include "dnn_dist_data.h"
+#include "../dnn_dist_data.h"
 
 using namespace std;
 using namespace dlib;
+
+// Load Slave function copied from lenet dist leader
+std::vector<device> loadSlaves (char *filename) {
+	std::ifstream f;
+	f.open (filename);
+
+	std::vector<device> ret;
+
+	int number = 0;
+	std::string ip;
+	int port = -1;
+
+	while (f >> ip >> port) {
+		device temp (number, ip, port);
+		ret.push_back (temp);
+	}
+
+	f.close();
+	return ret;
+}
+
 
 // Inception layer has some different convolutions inside.  Here we define
 // blocks as convolutions with different kernel size that we will use in
@@ -66,17 +87,44 @@ using net_type = loss_multiclass_log<
 int main(int argc, char** argv) try
 {
     // This example is going to run on the MNIST dataset.
-    if (argc != 2)
-    {
-        cout << "This example needs the MNIST dataset to run!" << endl;
-        cout << "You can get MNIST from http://yann.lecun.com/exdb/mnist/" << endl;
-        cout << "Download the 4 files that comprise the dataset, decompress them, and" << endl;
-        cout << "put them in a folder.  Then give that folder as input to this program." << endl;
-        return 1;
-    }
+	if (argc < 2) {
+		cout << "Master program has invalid argumnets" << endl;
+		return 1;
+	}
 
+	char *data_path;					// Training & Testing data
+	char *slave_path;					// File contains all slave ip and port information
 
-	char* data_path = argv[1];
+	int ismaster = 1;
+	device me;
+	device master;
+
+	std::vector<device> slave_list;
+
+	// Get the mode, ip and port
+	me.ip = argv[1];
+	me.port = atoi (argv[2]);
+	me.number = atoi (argv[3]);
+
+	// Print self information
+	std::cout << "Local Machine info:\n";
+	std::cout << "master" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp (argv[i], "-d") == 0) {
+			data_path = argv[i + 1];
+			std::cout << "Dataset:\t" << data_path << std::endl;
+		}
+
+		if (strcmp (argv[i], "-s") == 0) {
+			slave_path = argv[i + 1];
+			std::cout << "Slaveset:\t" << slave_path << std::endl;
+		}
+	}
+
+	// Get slaves
+	slave_list = loadSlaves (slave_path);
+
 	dataset<matrix<unsigned char>, unsigned long> training (load_mnist_training_data, data_path);
 	dataset<matrix<unsigned char>, unsigned long> testing (load_mnist_testing_data, data_path);
 	training = training.split (0, 1000);
@@ -98,25 +146,90 @@ int main(int argc, char** argv) try
     // Train the network.  This might take a few minutes...
     // trainer.train(training_images, training_labels);
 	
-	while(1){
-
-		trainer.train_one_epoch(training.getData(), training.getLabel());
-
-		training.accuracy(net);
+    net.clean();
 
 
-		if(trainer.learning_rate <= 0.00001)
-			break;
+
+	using trainer_type = dnn_trainer<net_type>;
+
+	dnn_leader<trainer_type> syncer (&trainer, 0);
+	syncer.set_this_device (me);
+	syncer.set_isMaster (1);
+
+	for (int i = 0; i < slave_list.size(); i++) {
+		syncer.add_slave (slave_list[i]);
 	}
 
-    // At this point our net object should have learned how to classify MNIST images.  But
-    // before we try it out let's save it to disk.  Note that, since the trainer has been
-    // running images through the network, net will have a bunch of state in it related to
-    // the last batch of images it processed (e.g. outputs from each layer).  Since we
-    // don't care about saving that kind of stuff to disk we can tell the network to forget
-    // about that kind of transient data so that our file will be smaller.  We do this by
-    // "cleaning" the network before saving it.
-    net.clean();
+	trainer.isDistributed = 1;
+
+	// HPZ: Manually check if any problems happened in the init
+	sleep ((unsigned int) 0);
+
+	trainer.synchronization_status = 0;
+	trainer.train_one_batch (training.getData(), training.getLabel());
+
+	while (trainer.synchronization_status != 1) { }
+
+	trainer.synchronization_status = 2;
+
+	while (trainer.synchronization_status != 4) { }
+
+	syncer.init_slaves();
+
+	std::cout << "Finished Initialization, now start training procedures" << std::endl;
+	syncer.print_slaves_status();
+	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
+
+	auto time = 0;
+	int epoch = 0, batch = 0;
+	int mark = 0;
+	int ending = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 30;
+
+
+	while (1) {
+		mark += 1;
+		trainer.train_noop();
+		auto epoch_time = system_clock::now();  // HPZ: Counting
+		// epoch += trainer.train_one_batch(local_training_images, local_training_labels);
+
+		syncer.sn_sync();
+		epoch ++;
+
+		std::cout << "Finish batch " << batch++ << std::endl;
+		std::cout << "Time for batch is "
+				  << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
+		time += std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count();
+
+
+		training.accuracy (net);
+
+
+		if (ismaster) {
+			if (trainer.learning_rate <= 0.001) {
+				std::cout << "---------------------------" << std::endl;
+				std::cout << "|Exit because l_rate      |" << std::endl;
+				std::cout << "---------------------------" << std::endl;
+				break;
+			}
+
+			if (epoch >= ending) {
+				std::cout << "---------------------------" << std::endl;
+				std::cout << "|Exit because 30 epochs   |" << std::endl;
+				std::cout << "---------------------------" << std::endl;
+				break;
+			}
+		}
+	}
+
+	std::cout << "All time: " << time << std::endl;
+
+	training.accuracy (net);
+	testing.accuracy (net);
+
+	std::cout << trainer << std::endl;
+
+	net.clean();
+
     serialize("mnist_network_inception.dat") << net;
     // Now if we later wanted to recall the network from disk we can simply say:
     // deserialize("mnist_network_inception.dat") >> net;

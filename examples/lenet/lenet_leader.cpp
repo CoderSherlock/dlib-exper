@@ -24,7 +24,7 @@
 #include <chrono>
 #include <csignal>
 
-#include "dnn_dist_data.h"
+#include "../dnn_dist_data.h"
 
 #define ASYNC 0
 
