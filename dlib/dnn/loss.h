@@ -195,19 +195,19 @@ namespace dlib
             for (long i = 0; i < output_tensor.num_samples(); ++i)
             {
                 const float y = *truth++;
-                DLIB_CASSERT(y == +1 || y == -1, "y: " << y);
+                DLIB_CASSERT(y != 0, "y: " << y);
                 float temp;
                 if (y > 0)
                 {
                     temp = log1pexp(-out_data[i]);
-                    loss += scale*temp;
-                    g[i] = scale*(g[i]-1);
+                    loss += y*scale*temp;
+                    g[i] = y*scale*(g[i]-1);
                 }
                 else
                 {
                     temp = -(-out_data[i]-log1pexp(-out_data[i]));
-                    loss += scale*temp;
-                    g[i] = scale*g[i];
+                    loss += -y*scale*temp;
+                    g[i] = -y*scale*g[i];
                 }
             }
             return loss;
@@ -1009,7 +1009,7 @@ namespace dlib
                 double detection_confidence_,
                 size_t tensor_offset_,
                 long channel
-            ) : rect(rect_), rect_bbr(rect_), detection_confidence(detection_confidence_), tensor_offset(tensor_offset_), tensor_channel(channel) {}
+            ) : rect(rect_), detection_confidence(detection_confidence_), tensor_offset(tensor_offset_), tensor_channel(channel), rect_bbr(rect_) {}
 
             // rect is the rectangle you get without any bounding box regression.  So it's
             // the basic sliding window box (aka, the "anchor box").
@@ -1135,7 +1135,7 @@ namespace dlib
                 // Prevent calls to tensor_to_dets() from running for a really long time
                 // due to the production of an obscene number of detections.
                 const unsigned long max_num_initial_dets = max_num_dets*100;
-                if (dets.size() >= max_num_initial_dets)
+                if (dets.size() > max_num_initial_dets)
                 {
                     det_thresh_speed_adjust = std::max(det_thresh_speed_adjust,dets[max_num_initial_dets].detection_confidence + options.loss_per_false_alarm);
                 }
@@ -1428,7 +1428,7 @@ namespace dlib
             const float* out_data = output_tensor.host() + output_tensor.k()*output_tensor.nr()*output_tensor.nc()*i;
             // scan the final layer and output the positive scoring locations
             dets_accum.clear();
-            for (long k = 0; k < options.detector_windows.size(); ++k)
+            for (long k = 0; k < (long)options.detector_windows.size(); ++k)
             {
                 for (long r = 0; r < output_tensor.nr(); ++r)
                 {

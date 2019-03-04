@@ -29,6 +29,20 @@ numpy_image<T> py_resize_image (
 // ----------------------------------------------------------------------------------------
 
 template <typename T>
+numpy_image<T> py_scale_image (
+    const numpy_image<T>& img,
+    double scale
+)
+{
+    DLIB_CASSERT(scale > 0, "Scale factor must be greater than 0");
+    numpy_image<T> out = img;
+    resize_image(scale, out);
+    return out;
+}
+
+// ----------------------------------------------------------------------------------------
+
+template <typename T>
 numpy_image<T> py_equalize_histogram (
     const numpy_image<T>& img
 )
@@ -51,7 +65,7 @@ std::vector<point> py_remove_incoherent_edge_pixels (
     DLIB_CASSERT(num_rows(horz_gradient) == num_rows(vert_gradient));
     DLIB_CASSERT(num_columns(horz_gradient) == num_columns(vert_gradient));
     DLIB_CASSERT(angle_threshold >= 0);
-    for (auto& p : line)
+    for (const auto& p : line)
         DLIB_CASSERT(get_rect(horz_gradient).contains(p), "All line points must be inside the given images.");
 
     return remove_incoherent_edge_pixels(line, horz_gradient, vert_gradient, angle_threshold);
@@ -138,7 +152,7 @@ py::list py_extract_image_chips (
     dlib::array<numpy_image<T>> out;
     extract_image_chips(img, python_list_to_vector<chip_details>(chip_locations), out);
     py::list ret;
-    for (auto& i : out)
+    for (const auto& i : out)
         ret.append(i);
     return ret;
 }
@@ -535,6 +549,15 @@ void bind_image_classes2(py::module& m)
     m.def("resize_image", &py_resize_image<float>, py::arg("img"), py::arg("rows"), py::arg("cols"));
     m.def("resize_image", &py_resize_image<double>, docs, py::arg("img"), py::arg("rows"), py::arg("cols"));
     m.def("resize_image", &py_resize_image<rgb_pixel>, docs, py::arg("img"), py::arg("rows"), py::arg("cols"));
+    m.def("resize_image", &py_scale_image<int8_t>, py::arg("img"), py::arg("scale"));
+    m.def("resize_image", &py_scale_image<int16_t>, py::arg("img"), py::arg("scale"));
+    m.def("resize_image", &py_scale_image<int32_t>, py::arg("img"), py::arg("scale"));
+    m.def("resize_image", &py_scale_image<int64_t>, py::arg("img"), py::arg("scale"));
+    m.def("resize_image", &py_scale_image<float>, py::arg("img"), py::arg("scale"));
+    m.def("resize_image", &py_scale_image<double>, py::arg("img"), py::arg("scale"));
+    m.def("resize_image", &py_scale_image<rgb_pixel>, py::arg("img"), py::arg("scale"),
+        "Resizes img, using bilinear interpolation, to have the new size (img rows * scale, img cols * scale)"
+        );
 
     register_extract_image_chip(m);
 
