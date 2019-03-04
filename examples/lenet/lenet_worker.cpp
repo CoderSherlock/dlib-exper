@@ -93,10 +93,6 @@ int main (int argc, char **argv) try {
 	std::cout << "Local Machine info:\n";
 	std::cout << "slave" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
 
-	// Print self information
-	std::cout << "Local Machine info:\n";
-	std::cout << "slave" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
-
 	// Get data
 	dataset<matrix<unsigned char>, unsigned long> training (load_mnist_training_data, data_path);
 	dataset<matrix<unsigned char>, unsigned long> testing (load_mnist_testing_data, data_path);
