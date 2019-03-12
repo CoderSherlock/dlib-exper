@@ -1,21 +1,11 @@
-// The contents of this file are in the public domain. See LICENSE_FOR_EXAMPLE_PROGRAMS.txt
 /*
-   This is an example illustrating the use of the deep learning tools from the
-   dlib C++ Library.  In it, we will train the venerable LeNet convolutional
-   neural network to recognize hand written digits.  The network will take as
-   input a small image and classify it as one of the 10 numeric digits between
-   0 and 9.
+ *	This Network is an experiemental neural network for permission analysis
+ *
+ *
+ *
+ *
+ */
 
-   The specific network we will run is from the paper
-   LeCun, Yann, et al. "Gradient-based learning applied to document recognition."
-   Proceedings of the IEEE 86.11 (1998): 2278-2324.
-   except that we replace the sigmoid non-linearities with rectified linear units.
-
-   These tools will use CUDA and cuDNN to drastically accelerate network
-   training and testing.  CMake should automatically find them if they are
-   installed and configure things appropriately.  If not, the program will
-   still run but will be much slower to execute.
-   */
 
 
 #include <dlib/dnn.h>
@@ -23,13 +13,33 @@
 #include <dlib/data_io.h>
 #include <chrono>
 #include <csignal>
+#include <fstream>
 
-#include "../dnn_dist_data.h"
+#include "dnn_dist_data.h"
 
 using namespace std;
 using namespace dlib;
 using std::chrono::system_clock;
 
+int load_permission_training_data(char* dataset, std::vector<matrix<int>> &data, std::vector<unsigned long> &label) {	
+	std::fstream in(dataset);
+	std::string line;
+	while(in >> line) {
+		matrix<int> instance;
+		size_t pos = 0;
+		int index = 0;
+		while((pos = line.find(",")) != std::string::npos) {
+			std::string token = line.substr(0, pos);
+			instance.set_size(1, 212);
+			instance(0, index++) = stoi(token);
+			line.erase(0, pos + 1);
+		}
+		unsigned long instance_label = (unsigned long) stoi(line);	
+		data.push_back(instance);
+		label.push_back(instance_label);
+	}
+	return 1;
+}
 
 int main (int argc, char **argv) try {
 
@@ -40,60 +50,39 @@ int main (int argc, char **argv) try {
 		cout << "Master program has invalid argumnets" << endl;
 		return 1;
 	}
-
-	char *data_path;					// Training & Testing data
-	char *slave_path;					// File contains all slave ip and port information
-
-	int ismaster = 0;
-	device me;
-	device master;
-
-	std::vector<device> slave_list;
-
-	me.ip = argv[1];
-	me.port =atoi (argv[2]);
-	me.number = atoi (argv[3]);
-
-	for (int i = 1; i < argc; i++) {
-		if (strcmp (argv[i], "-d") == 0) {
-			data_path = argv[i + 1];
-			std::cout << "Dataset:\t" << data_path << std::endl;
-		}
-
-		if (strcmp (argv[i], "-s") == 0) {
-			slave_path = argv[i + 1];
-			std::cout << "Slaveset:\t" << slave_path << std::endl;
-		}
-	}
-
-	// Get slaves
-	slave_list = loadSlaves (slave_path);
-
-	// Print self information
-	std::cout << "Local Machine info:\n";
-	std::cout << "slave" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
+	
+	char* data_path = argv[1];
 
 	// Get data
-	dataset<matrix<unsigned char>, unsigned long> training (load_mnist_training_data, data_path);
-	dataset<matrix<unsigned char>, unsigned long> testing (load_mnist_testing_data, data_path);
+	dataset<matrix<int>, unsigned long> training (load_permission_training_data, data_path);
 	training = training.split (0, 1000);
-	dataset<matrix<unsigned char>, unsigned long> local_training = training = training.split_by_group (slave_list.size(), me.number);
-
+	dataset<matrix<int>, unsigned long> local_training = training.split (0, 900);
+	dataset<matrix<int>, unsigned long> local_testing = training.split (900, 1000);
 
 	std::cout << local_training.getData().size() << std::endl;
+	std::cout << local_testing.getData().size() << std::endl;
+
+	int all = 0, ben = 0;
+	std::vector<unsigned long> temp = local_testing.getLabel();
+	for(auto i = temp.begin(); i != temp.end(); i++) {
+		if(*i == 0) ben++;
+		all++;	
+	}
+	std::cout << ben << "/" << all << std::endl;
 
 
 	/*
-	 * Define net_type (original by dlib)
+	 * Define net_type (By CoderSherlock)
 	 */
 	using net_type = loss_multiclass_log <
-					 fc<10,
-					 relu<fc<84,
-					 relu<fc<120,
-					 max_pool<2, 2, 2, 2, relu<con<16, 5, 5, 1, 1,
-					 max_pool<2, 2, 2, 2, relu<con<6, 5, 5, 1, 1,
-					 input<matrix<unsigned char>>
-					 >>>>>>>>>> >>;
+					 fc<2,
+					 relu<fc<16,
+					 relu<fc<64,
+					 relu<fc<64,
+					 relu<fc<256,
+					 relu<fc<256,
+					 input<matrix<int>>
+					 >>>>>>>>>>>>;
 
 	net_type net;
 
@@ -105,72 +94,29 @@ int main (int argc, char **argv) try {
 	trainer.be_verbose();
 
 	char sync_filename[30];
-	sprintf (sync_filename, "backup.%d.mm", me.number);
+	sprintf (sync_filename, "backup.%s.mm", "pe_test");
 	trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
 
 	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	using trainer_type = dnn_trainer<net_type>;
-	dnn_worker<trainer_type> syncer (&trainer, 0);
-	syncer.set_this_device (me);
 
-	// TODO: Wait for master connect
-	if (!syncer.wait_for_master_init()) {
-		std::cerr << "Error happens when master send init message" << std::endl;
-		exit (0);
-	}
-
-	trainer.isDistributed = 1;
-
-	// HPZ: Manually check if any problems happened in the init
-	sleep ((unsigned int) 0);
+	trainer.isDistributed = 0;
 
 	int epoch = 0, batch = 0;
 	int mark = 0;
 	auto time = 0;
 
-	// sleep ((unsigned int) (me.number % 2) * 10);
-
 	while (true) {
-		while (trainer.synchronization_status != 4) {};
-
 		mark += 1;
 
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 
-		while (trainer.status_lock.trylock() == 0);
+		trainer.train_one_epoch (local_training.getData(), local_training.getLabel());
+		epoch ++;
 
-		if (trainer.synchronization_status != 3)
-			std::cout << "Something wrong with sync lock: current: " << trainer.synchronization_status << "\t Going to set: 0" << std::endl;
-
-		trainer.synchronization_status = 0;
-		std::cout << "[dnn_master]: init done, may start to train" << std::endl;
-		trainer.status_lock.unlock();
-
-		epoch += trainer.train_one_batch (local_training.getData(), local_training.getLabel());
-
-		// Wait for ready
-		std::cout << "Im here" << std::endl;
-
-		while (trainer.synchronization_status != 1) {
-			asm ("");
-		}//std::cout<<"wait to sync" << std::endl;}
-
-		// std::cout << "[dnn_master]: start to sync" << std::endl;
+		// sleep((unsigned int) 0);
 
 		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
-		// std::cout << "[Before]" << std::endl;
-		// accuracy(net, local_training_images, local_training_labels);
-		// accuracy(net, testing_images, testing_labels);
-
-		auto sync_time = system_clock::now();  // HPZ: Counting
-		syncer.sn_sync();
-		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
-
-		// serialize(trainer, std::cout);
-
-		// Wait for all devices send back to their paramaters
-
-		while (trainer.synchronization_status != 4) {} //std::cout <<"wait to update"<<std::endl;}
 
 		std::cout << "Finish batch " << batch++ << std::endl;
 		std::cout << "Time for batch is "
@@ -179,34 +125,31 @@ int main (int argc, char **argv) try {
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		// local_training.accuracy (net);
-		// accuracy(net, testing_images, testing_labels);
-		//
+		local_training.accuracy (net);
 
-		if (trainer.learning_rate <= 0.001) {
+		if (trainer.learning_rate <= 0.00001) {
 			std::cout << "---------------------------" << std::endl;
 			std::cout << "|Exit because l_rate      |" << std::endl;
 			std::cout << "---------------------------" << std::endl;
 			break;
 		}
 
-		if (epoch >= 30) {
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "|Exit because 30 epochs   |" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			break;
-		}
+		// if (epoch >= 120) {
+		//     std::cout << "---------------------------" << std::endl;
+		//     std::cout << "|Exit because 120 epochs   |" << std::endl;
+		//     std::cout << "---------------------------" << std::endl;
+		//     break;
+		// }
 
 
 	}
 
 	// trainer.train(training_images, training_labels);
-
-	// local_training.accuracy (net);
-	// testing.accuracy (net);
+	local_training.accuracy (net);
+	local_testing.accuracy (net);
 	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
-	sleep ((unsigned int) 3600);
+	// sleep ((unsigned int) 3600);
 
 	// At this point our net object should have learned how to classify MNIST images.  But
 	// before we try it out let's save it to disk.  Note that, since the trainer has been
