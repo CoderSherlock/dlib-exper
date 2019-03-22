@@ -21,7 +21,7 @@ using namespace std;
 using namespace dlib;
 using std::chrono::system_clock;
 
-int load_permission_training_data(char* dataset, std::vector<matrix<int>> &data, std::vector<unsigned long> &label) {	
+int load_permission_data(char* dataset, std::vector<matrix<int>> &data, std::vector<unsigned long> &label) {	
 	std::fstream in(dataset);
 	std::string line;
 	while(in >> line) {
@@ -30,7 +30,7 @@ int load_permission_training_data(char* dataset, std::vector<matrix<int>> &data,
 		int index = 0;
 		while((pos = line.find(",")) != std::string::npos) {
 			std::string token = line.substr(0, pos);
-			instance.set_size(1, 212);
+			instance.set_size(1, 252);
 			instance(0, index++) = stoi(token);
 			line.erase(0, pos + 1);
 		}
@@ -51,24 +51,31 @@ int main (int argc, char **argv) try {
 		return 1;
 	}
 	
-	char* data_path = argv[1];
+	char* training_data_path = argv[1];
+	char* testing_data_path = argv[2];
 
 	// Get data
-	dataset<matrix<int>, unsigned long> training (load_permission_training_data, data_path);
-	training = training.split (0, 1000);
-	dataset<matrix<int>, unsigned long> local_training = training.split (0, 900);
-	dataset<matrix<int>, unsigned long> local_testing = training.split (900, 1000);
+	dataset<matrix<int>, unsigned long> training (load_permission_data, training_data_path);
+	dataset<matrix<int>, unsigned long> b_testing (load_permission_data, argv[2]);
+	dataset<matrix<int>, unsigned long> j_testing (load_permission_data, argv[3]);
+	dataset<matrix<int>, unsigned long> k_testing (load_permission_data, argv[4]);
+	dataset<matrix<int>, unsigned long> s_testing (load_permission_data, argv[5]);
+	dataset<matrix<int>, unsigned long> v_testing (load_permission_data, argv[6]);
 
-	std::cout << local_training.getData().size() << std::endl;
-	std::cout << local_testing.getData().size() << std::endl;
+	std::cout << training.getData().size() << std::endl;
+	std::cout << b_testing.getData().size() << std::endl;
+	std::cout << j_testing.getData().size() << std::endl;
+	std::cout << k_testing.getData().size() << std::endl;
+	std::cout << s_testing.getData().size() << std::endl;
+	std::cout << v_testing.getData().size() << std::endl;
 
 	int all = 0, ben = 0;
-	std::vector<unsigned long> temp = local_testing.getLabel();
-	for(auto i = temp.begin(); i != temp.end(); i++) {
-		if(*i == 0) ben++;
-		all++;	
-	}
-	std::cout << ben << "/" << all << std::endl;
+	// std::vector<unsigned long> temp = testing.getLabel();
+	// for(auto i = temp.begin(); i != temp.end(); i++) {
+	//     if(*i == 0) ben++;
+	//     all++;
+	// }
+	// std::cout << ben << "/" << all << std::endl;
 
 
 	/*
@@ -111,7 +118,7 @@ int main (int argc, char **argv) try {
 
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 
-		trainer.train_one_epoch (local_training.getData(), local_training.getLabel());
+		trainer.train_one_epoch (training.getData(), training.getLabel());
 		epoch ++;
 
 		// sleep((unsigned int) 0);
@@ -125,7 +132,7 @@ int main (int argc, char **argv) try {
 
 		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		local_training.accuracy (net);
+		training.accuracy (net);
 
 		if (trainer.learning_rate <= 0.00001) {
 			std::cout << "---------------------------" << std::endl;
@@ -145,8 +152,12 @@ int main (int argc, char **argv) try {
 	}
 
 	// trainer.train(training_images, training_labels);
-	local_training.accuracy (net);
-	local_testing.accuracy (net);
+	training.accuracy (net);
+	b_testing.accuracy (net);
+	j_testing.accuracy (net);
+	k_testing.accuracy (net);
+	s_testing.accuracy (net);
+	v_testing.accuracy (net);
 	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
 	// sleep ((unsigned int) 3600);
