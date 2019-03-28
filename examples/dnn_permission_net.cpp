@@ -30,7 +30,7 @@ int load_permission_data(char* dataset, std::vector<matrix<int>> &data, std::vec
 		int index = 0;
 		while((pos = line.find(",")) != std::string::npos) {
 			std::string token = line.substr(0, pos);
-			instance.set_size(1, 252);
+			instance.set_size(1, 265);
 			instance(0, index++) = stoi(token);
 			line.erase(0, pos + 1);
 		}
@@ -51,23 +51,27 @@ int main (int argc, char **argv) try {
 		return 1;
 	}
 	
-	char* training_data_path = argv[1];
-	char* testing_data_path = argv[2];
-
 	// Get data
-	dataset<matrix<int>, unsigned long> training (load_permission_data, training_data_path);
-	dataset<matrix<int>, unsigned long> b_testing (load_permission_data, argv[2]);
-	dataset<matrix<int>, unsigned long> j_testing (load_permission_data, argv[3]);
-	dataset<matrix<int>, unsigned long> k_testing (load_permission_data, argv[4]);
-	dataset<matrix<int>, unsigned long> s_testing (load_permission_data, argv[5]);
-	dataset<matrix<int>, unsigned long> v_testing (load_permission_data, argv[6]);
+	dataset<matrix<int>, unsigned long> training (load_permission_data, argv[1]);
+	dataset<matrix<int>, unsigned long> testing (load_permission_data, argv[2]);
+	dataset<matrix<int>, unsigned long> benign (load_permission_data, argv[3]);
+	dataset<matrix<int>, unsigned long> m1 (load_permission_data, argv[4]);
+	dataset<matrix<int>, unsigned long> m2 (load_permission_data, argv[5]);
+	dataset<matrix<int>, unsigned long> m3 (load_permission_data, argv[6]);
+	dataset<matrix<int>, unsigned long> m4 (load_permission_data, argv[7]);
+	dataset<matrix<int>, unsigned long> m5 (load_permission_data, argv[8]);
+	dataset<matrix<int>, unsigned long> m6 (load_permission_data, argv[9]);
+	dataset<matrix<int>, unsigned long> m7 (load_permission_data, argv[10]);
+	dataset<matrix<int>, unsigned long> m8 (load_permission_data, argv[11]);
+	dataset<matrix<int>, unsigned long> m9 (load_permission_data, argv[12]);
+	dataset<matrix<int>, unsigned long> m10 (load_permission_data, argv[13]);
+	dataset<matrix<int>, unsigned long> m11 (load_permission_data, argv[14]);
+	dataset<matrix<int>, unsigned long> m12 (load_permission_data, argv[15]);
+	dataset<matrix<int>, unsigned long> m13 (load_permission_data, argv[16]);
 
 	std::cout << training.getData().size() << std::endl;
-	std::cout << b_testing.getData().size() << std::endl;
-	std::cout << j_testing.getData().size() << std::endl;
-	std::cout << k_testing.getData().size() << std::endl;
-	std::cout << s_testing.getData().size() << std::endl;
-	std::cout << v_testing.getData().size() << std::endl;
+	std::cout << testing.getData().size() << std::endl;
+	std::cout << benign.getData().size() << std::endl;
 
 	int all = 0, ben = 0;
 	// std::vector<unsigned long> temp = testing.getLabel();
@@ -83,13 +87,14 @@ int main (int argc, char **argv) try {
 	 */
 	using net_type = loss_multiclass_log <
 					 fc<2,
-					 relu<fc<16,
-					 relu<fc<64,
-					 relu<fc<64,
-					 relu<fc<256,
-					 relu<fc<256,
+					 relu<fc<32,
+					 relu<fc<32,
+					 relu<fc<128,
+					 relu<fc<128,
+					 relu<fc<512,
+					 relu<fc<512,
 					 input<matrix<int>>
-					 >>>>>>>>>>>>;
+					 >>>>>>>>>>>>>>;
 
 	net_type net;
 
@@ -152,12 +157,55 @@ int main (int argc, char **argv) try {
 	}
 
 	// trainer.train(training_images, training_labels);
+	std::cout << argv[1] << std::endl;
 	training.accuracy (net);
-	b_testing.accuracy (net);
-	j_testing.accuracy (net);
-	k_testing.accuracy (net);
-	s_testing.accuracy (net);
-	v_testing.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[2] << std::endl;
+	testing.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[3] << std::endl;
+	benign.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[4] << std::endl;
+	m1.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[5] << std::endl;
+	m2.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[6] << std::endl;
+	m3.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[7] << std::endl;
+	m4.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[8] << std::endl;
+	m5.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[9] << std::endl;
+	m6.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[10] << std::endl;
+	m7.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[11] << std::endl;
+	m8.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[12] << std::endl;
+	m9.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[13] << std::endl;
+	m10.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[14] << std::endl;
+	m11.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[15] << std::endl;
+	m12.accuracy (net);
+	std::cout << std::endl;
+	std::cout << argv[16] << std::endl;
+	m13.accuracy (net);
+	std::cout << std::endl;
+
 	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
 	// sleep ((unsigned int) 3600);
