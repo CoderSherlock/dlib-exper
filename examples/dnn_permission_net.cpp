@@ -28,9 +28,9 @@ int load_permission_data(char* dataset, std::vector<matrix<int>> &data, std::vec
 		matrix<int> instance;
 		size_t pos = 0;
 		int index = 0;
+		instance.set_size(1, 427);
 		while((pos = line.find(",")) != std::string::npos) {
 			std::string token = line.substr(0, pos);
-			instance.set_size(1, 265);
 			instance(0, index++) = stoi(token);
 			line.erase(0, pos + 1);
 		}
