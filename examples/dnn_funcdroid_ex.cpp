@@ -16,25 +16,20 @@ using namespace std;
 using namespace dlib;
 using std::chrono::system_clock;
 
-#define COL 231
-#define ROW 57
+#define VL 4276
 
-int load_flowmatrix_data(char* dataset, std::vector<matrix<int>> &data, std::vector<unsigned long> &label) {	
+int load_function_data(char* dataset, std::vector<matrix<int>> &data, std::vector<unsigned long> &label) {	
 	std::fstream in(dataset);
 	std::string line;
 	while(in >> line) {
 		matrix<int> instance;
 		size_t pos = 0;
-		int cindex = 0, rindex = 0;
-        instance.set_size(COL, ROW);
+		int index = 0;
+		instance.set_size(1, VL);
 		while((pos = line.find(",")) != std::string::npos) {
 			std::string token = line.substr(0, pos);
-			instance(cindex, rindex++) = stoi(token);
+			instance(0, index++) = stoi(token);
 			line.erase(0, pos + 1);
-            if (rindex >= ROW) {
-                cindex ++;
-                rindex = 0;
-            }
 		}
 		unsigned long instance_label = (unsigned long) stoi(line);	
 		data.push_back(instance);
@@ -42,6 +37,7 @@ int load_flowmatrix_data(char* dataset, std::vector<matrix<int>> &data, std::vec
 	}
 	return 1;
 }
+
 int main (int argc, char **argv) try {
 
 	// signal (SIGINT, to_exit);
@@ -53,10 +49,10 @@ int main (int argc, char **argv) try {
 	}
 	
 	// Get data
-	dataset<matrix<int>, unsigned long> training (load_flowmatrix_data, argv[1]);
-	dataset<matrix<int>, unsigned long> testing (load_flowmatrix_data, argv[2]);
-	dataset<matrix<int>, unsigned long> benign (load_flowmatrix_data, argv[3]);
-	dataset<matrix<int>, unsigned long> malware (load_flowmatrix_data, argv[4]);
+	dataset<matrix<int>, unsigned long> training (load_function_data, argv[1]);
+	dataset<matrix<int>, unsigned long> testing (load_function_data, argv[2]);
+	dataset<matrix<int>, unsigned long> benign (load_function_data, argv[3]);
+	dataset<matrix<int>, unsigned long> malware (load_function_data, argv[4]);
 
 
 	std::cout << training.getData().size() << std::endl;
@@ -70,13 +66,15 @@ int main (int argc, char **argv) try {
 	using net_type = loss_multiclass_log <
 					 fc<2,
 					 relu<fc<32,
+					 relu<fc<32,
+					 relu<fc<128,
 					 relu<fc<128,
 					 relu<fc<512,
 					 relu<fc<512,
-					 max_pool<2,2,2,2,relu<con<16,6,5,1,1,
-					 max_pool<2,2,2,2,relu<con<10,6,6,1,1,
+					 relu<fc<4096,
+					 relu<fc<4096,
 					 input<matrix<int>>
-					 >>>>>>>>>>>>>>>>;
+					 >>>>>>>>>>>>>>>>>>;
 
 	net_type net;
 
@@ -88,7 +86,7 @@ int main (int argc, char **argv) try {
 	trainer.be_verbose();
 
 	char sync_filename[30];
-	sprintf (sync_filename, "backup.%s.mm", "flow_test");
+	sprintf (sync_filename, "backup.%s.mm", "func_test");
 	trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
 
 	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
