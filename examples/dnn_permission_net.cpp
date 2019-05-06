@@ -79,11 +79,11 @@ int main (int argc, char **argv) try {
 	 * Define net_type (By CoderSherlock)
 	 */
 	using net_type = loss_multiclass_log <
-					 fc<2,
-					 relu<fc<32,
-					 relu<fc<32,
+					 fc<73,
 					 relu<fc<128,
 					 relu<fc<128,
+					 relu<fc<256,
+					 relu<fc<256,
 					 relu<fc<512,
 					 relu<fc<512,
 					 input<matrix<int>>
