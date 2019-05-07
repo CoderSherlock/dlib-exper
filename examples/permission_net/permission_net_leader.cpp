@@ -61,7 +61,7 @@ int main (int argc, char **argv) try {
 
 	// signal (SIGINT, to_exit);
 
-	// This example is going to run on the MNIST dataset.
+
 	if (argc < 2) {
 		cout << "Master program has invalid argumnets" << endl;
 		return 1;
@@ -88,9 +88,9 @@ int main (int argc, char **argv) try {
 	for (int i = 1; i < argc; i++) {
 		if (strcmp (argv[i], "-d") == 0) {
 			training_data_path = argv[i + 1];
-			std::cout << "Dataset:\t" << training_data_path << std::endl;
+			std::cout << "Training dataset:\t" << training_data_path << std::endl;
 			testing_data_path = argv[i + 2];
-			std::cout << "Dataset:\t" << testing_data_path << std::endl;
+			std::cout << "Testing dataset:\t" << testing_data_path << std::endl;
 		}
 
 		if (strcmp (argv[i], "-s") == 0) {
@@ -117,11 +117,11 @@ int main (int argc, char **argv) try {
 	 */
 
 	using net_type = loss_multiclass_log <
-					 fc<2,
-					 relu<fc<32,
-					 relu<fc<32,
+					 fc<73,
 					 relu<fc<128,
 					 relu<fc<128,
+					 relu<fc<256,
+					 relu<fc<256,
 					 relu<fc<512,
 					 relu<fc<512,
 					 input<matrix<int>>
@@ -148,124 +148,108 @@ int main (int argc, char **argv) try {
 	syncer.set_this_device(me);
 	syncer.set_isMaster(1);
 
+	for (int i = 0; i < slave_list.size(); i++) {
+		syncer.add_slave(slave_list[i]);
+	}
+
 	trainer.isDistributed = 1;
 
+	trainer.synchronization_status = 0;
+
+	{
+		trainer.train_one_batch(training.getData(), training.getLabel());
+
+		while(trainer.synchronization_status != 1) { }
+
+		trainer.synchronization_status = 2;
+
+		while(trainer.synchronization_status != 4) { }
+	}
+
+#if !ASYNC
+	syncer.init_slaves();
+#else
+	syncer.init_slaves();
+	syncer.init_reciever_pool();
+#endif
+
+	std::cout << "Finished Initialization, now start training procedures" << std::endl;
+	syncer.print_slaves_status();
+	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
+
+
+#if !ASYNC
 	int epoch = 0, batch = 0;
 	int mark = 0;
 	auto time = 0;
+	int ending = ceil((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 30;
 
 	while (true) {
 		mark += 1;
 
+		trainer.train_noop();
+
 		auto epoch_time = system_clock::now();  // HPZ: Counting
 
-		trainer.train_one_epoch (training.getData(), training.getLabel());
+		syncer.sn_sync();
+		// trainer.train_one_epoch (training.getData(), training.getLabel());
 		epoch ++;
 
 		// sleep((unsigned int) 0);
-
-		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
 
 		std::cout << "Finish batch " << batch++ << std::endl;
 		std::cout << "Time for batch is "
 				  << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
 		time += std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count();
 
-		std::cout << trainer.learning_rate << std::endl;
 		// std::cout << "[After]" << std::endl;
-		training.accuracy (net);
+		// training.accuracy (net);
 
-		if (trainer.learning_rate <= 0.00001) {
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "|Exit because l_rate      |" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			break;
-		}
-
-		// if (epoch >= 120) {
-		//     std::cout << "---------------------------" << std::endl;
-		//     std::cout << "|Exit because 120 epochs   |" << std::endl;
-		//     std::cout << "---------------------------" << std::endl;
-		//     break;
+		// if (trainer.learning_rate <= 0.00001) {
+		// 	std::cout << "---------------------------" << std::endl;
+		// 	std::cout << "|Exit because l_rate      |" << std::endl;
+		// 	std::cout << "---------------------------" << std::endl;
+		// 	break;
 		// }
 
+		if (epoch >= ending) {
+		    std::cout << "---------------------------" << std::endl;
+		    std::cout << "|Exit because 120 epochs   |" << std::endl;
+		    std::cout << "---------------------------" << std::endl;
+		    break;
+		}
 
 	}
+	
+	std::cout << "All time: " << time << std::endl;
 
-	// trainer.train(training_images, training_labels);
+#else
+	auto real_time = system_clock::now();
+	auto print_time = 0;
+	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 60;
+	std::cout << syncer.ending_time << std::endl;
+
+	syncer.sync();
+	print_time = std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - real_time).count();
+	std::cout << "All time: " << print_time << std::endl;
+
+#endif
+
 	std::cout << argv[1] << std::endl;
 	training.accuracy (net);
 	std::cout << std::endl;
 	std::cout << argv[2] << std::endl;
 	testing.accuracy (net);
 	std::cout << std::endl;
-	// std::cout << argv[3] << std::endl;
-	// benign.accuracy (net);
-	// std::cout << std::endl;
-	// std::cout << argv[4] << std::endl;
-	// malware.accuracy (net);
-	// std::cout << std::endl;
-	// std::cout << argv[5] << std::endl;
-	// b1.accuracy (net);
-	// std::cout << std::endl;
-	// std::cout << argv[6] << std::endl;
-	// m1.accuracy (net);
-	// std::cout << std::endl;
-	// std::cout << argv[7] << std::endl;
-	// b2.accuracy (net);
-	// std::cout << std::endl;
-	// std::cout << argv[8] << std::endl;
-	// m2.accuracy (net);
-	// std::cout << std::endl;
 
-	std::cout << "All time: " << time << std::endl;
 	std::cout << trainer << std::endl;
-	// sleep ((unsigned int) 3600);
+	sleep ((unsigned int) 3600);
 
-	// At this point our net object should have learned how to classify MNIST images.  But
-	// before we try it out let's save it to disk.  Note that, since the trainer has been
-	// running images through the network, net will have a bunch of state in it related to
-	// the last batch of images it processed (e.g. outputs from each layer).  Since we
-	// don't care about saving that kind of stuff to disk we can tell the network to forget
-	// about that kind of transient data so that our file will be smaller.  We do this by
-	// "cleaning" the network before saving it.
 	net.clean();
-	serialize ("mnist_network.dat") << net;
-	// Now if we later wanted to recall the network from disk we can simply say:
-	// deserialize("mnist_network.dat") >> net;
+	serialize ("permission_network.dat") << net;
 
+	net_to_xml (net, "permission.xml");
 
-	// Now let's run the training images through the network.  This statement runs all the
-	// images through it and asks the loss layer to convert the network's raw output into
-	// labels.  In our case, these labels are the numbers between 0 and 9.
-
-
-
-
-
-	// Let's also see if the network can correctly classify the testing images.  Since
-	// MNIST is an easy dataset, we should see at least 99% accuracy.
-	/*
-	   predicted_labels = net(testing_images);
-	   num_right = 0;
-	   num_wrong = 0;
-	   for (size_t i = 0; i < testing_images.size(); ++i)
-	   {
-	   if (predicted_labels[i] == testing_labels[i])
-	   ++num_right;
-	   else
-	   ++num_wrong;
-
-	   }
-	   cout << "testing num_right: " << num_right << endl;
-	   cout << "testing num_wrong: " << num_wrong << endl;
-	   cout << "testing accuracy:  " << num_right/(double)(num_right+num_wrong) << endl;
-	   */
-
-	// Finally, you can also save network parameters to XML files if you want to do
-	// something with the network in another tool.  For example, you could use dlib's
-	// tools/convert_dlib_nets_to_caffe to convert the network to a caffe model.
-	net_to_xml (net, "lenet.xml");
 } catch (std::exception &e) {
 	cout << e.what() << endl;
 }
