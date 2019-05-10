@@ -176,6 +176,7 @@ void send_compressed_tensor (connection *dest, tensor *tensor) {
 		dest->write (write_Ptr, write_max - write_length);
 	}
 
+	free(tmpBuf);
 	wait_ack (dest);
 }
 int recieve_tensor (connection *src, tensor *container) {
@@ -225,6 +226,7 @@ int recieve_tensor (connection *src, tensor *container) {
 	// std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() -
 	// epoch_time).count() << std::endl;   // HPZ: Counting //
 
+	free(tmpBuf);
 	return length;
 }
 

@@ -196,6 +196,8 @@ class dnn_leader : public dnn_syncer<trainer_type> {
 
 	void init_slaves();
 
+	void shut_slaves();
+
 	void send_parameters (connection *slave);
 
 	void send_parameters_to_slaves_serialised ();

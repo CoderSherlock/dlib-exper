@@ -76,6 +76,7 @@ void dnn_syncer<trainer_type>::update (std::vector<tensor *> &updated) {
  *  add_slave
  *  remove_slave
  *  init_slaves
+ *  shut_slaves
  *  send_parameters: send parameters to specified slave(one)
  *  send_parameters_to_slaves_serialism: send parameters to all slaves in serial
  *  send_parameters_to_slaves_paralized: send parameters to all slaves in parali
@@ -119,7 +120,7 @@ void dnn_leader<trainer_type>::init_slaves() {
 		connection *conn = this->slaves_conns[i];
 
 		// Greeting messages
-		char init_msg[30];
+		char init_msg[30] = {0};
 		snprintf (init_msg, sizeof (init_msg), "%s:%d\n", &this->me.ip[0], this->me.port);
 		conn->write (init_msg, 30);
 		char reply_msg[30];
@@ -137,6 +138,17 @@ void dnn_leader<trainer_type>::init_slaves() {
 		}
 
 		this->slaves_status[i] = slaveStatus::Running;
+	}
+}
+
+template <typename trainer_type>
+void dnn_leader<trainer_type>::shut_slaves() {
+	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to init slaves.");
+
+	for (int i = 0; i < this->slaves_list.size(); i++ ) {
+		delete this->slaves_conns[i];
+
+		this->slaves_status[i] = slaveStatus::NotConn;
 	}
 }
 
@@ -195,6 +207,10 @@ void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized () {
 
 	for (size_t i = 0; i < recievers.size(); i++) {
 		recievers[i]->join();
+	}
+
+	for (size_t i = 0; i < recievers.size(); i++) {
+		delete recievers[i];
 	}
 }
 
@@ -266,6 +282,10 @@ void dnn_leader<trainer_type>::recieve_gradients_parallism (std::vector<std::vec
 
 	for (size_t i = 0; i < recievers.size(); i++) {
 		recievers[i]->join();
+	}
+
+	for (size_t i = 0; i < recievers.size(); i++) {
+		delete recievers[i];
 	}
 }
 

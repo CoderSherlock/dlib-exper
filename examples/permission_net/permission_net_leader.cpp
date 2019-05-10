@@ -182,7 +182,7 @@ int main (int argc, char **argv) try {
 	int epoch = 0, batch = 0;
 	int mark = 0;
 	auto time = 0;
-	int ending = ceil((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 30;
+	int ending = ceil((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 5;
 
 	while (true) {
 		mark += 1;
@@ -223,6 +223,8 @@ int main (int argc, char **argv) try {
 	
 	std::cout << "All time: " << time << std::endl;
 
+	syncer.shut_slaves();
+
 #else
 	auto real_time = system_clock::now();
 	auto print_time = 0;
@@ -235,15 +237,15 @@ int main (int argc, char **argv) try {
 
 #endif
 
-	std::cout << argv[1] << std::endl;
+	std::cout << training_data_path << std::endl;
 	training.accuracy (net);
 	std::cout << std::endl;
-	std::cout << argv[2] << std::endl;
+	std::cout << testing_data_path << std::endl;
 	testing.accuracy (net);
 	std::cout << std::endl;
 
 	std::cout << trainer << std::endl;
-	sleep ((unsigned int) 3600);
+	//sleep ((unsigned int) 3600);
 
 	net.clean();
 	serialize ("permission_network.dat") << net;
