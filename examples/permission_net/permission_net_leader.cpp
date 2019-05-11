@@ -182,7 +182,7 @@ int main (int argc, char **argv) try {
 	int epoch = 0, batch = 0;
 	int mark = 0;
 	auto time = 0;
-	int ending = ceil((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 5;
+	int ending = ceil((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 30;
 
 	while (true) {
 		mark += 1;
@@ -228,7 +228,7 @@ int main (int argc, char **argv) try {
 #else
 	auto real_time = system_clock::now();
 	auto print_time = 0;
-	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 60;
+	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 30;
 	std::cout << syncer.ending_time << std::endl;
 
 	syncer.sync();

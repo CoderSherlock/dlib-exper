@@ -210,9 +210,9 @@ int main (int argc, char **argv) try {
 			break;
 		}
 
-		if (epoch >= 5) {
+		if (epoch >= 30) {
 			std::cout << "---------------------------" << std::endl;
-			std::cout << "|Exit because 5 epochs   |" << std::endl;
+			std::cout << "|Exit because 30 epochs   |" << std::endl;
 			std::cout << "---------------------------" << std::endl;
 			break;
 		}
