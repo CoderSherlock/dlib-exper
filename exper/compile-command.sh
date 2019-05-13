@@ -1,0 +1,4 @@
+mkdir /home/dlib/dlib-exper/build
+cd /home/dlib/dlib-exper/build
+cmake ../examples -DCMAKE_BUILD_TYPE=Release -DDLIB_USE_CUDA=0 -DDLIB_JPEG_SUPPORT=0 -DDLIB_LINK_WITH_SQLITE3=0 -DDLIB_USE_BLAS=0 -DDLIB_USE_LAPACK=0 -DDLIB_PNG_SUPPORT=0 -DDLIB_GIF_SUPPORT=0 -DDLIB_USE_FFTW=0 -DDLIB_USE_MKL_FFT=0 -DDLIB_NO_GUI_SUPPORT=1
+cmake --build . -- -j 8

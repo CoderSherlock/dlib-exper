@@ -220,7 +220,7 @@ int main (int argc, char **argv) try {
 	
 	std::cout << "All time: " << time << std::endl;
 
-	std::cout << argv[1] << std::endl;
+	std::cout << training_data_path << std::endl;
 	training.accuracy (net);
 	std::cout << std::endl;
 
