@@ -172,10 +172,20 @@ void dnn_async_leader<trainer_type>::sync() {
 				// Wait for result
 				while (this->trainer->synchronization_status != 4) { }
 
+				std::vector<tensor *> sys_tensors_ptrs;
+				sys_tensors_ptrs.resize(this->trainer->num_computational_layers);
 				visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t k, tensor & t) {
 					// std::cout << "SP get parameteres from" << &t << std::endl;
-					this->send_back_paras[ (*i).slave_index][k] = t;
+					//this->send_back_paras[ (*i).slave_index][k] = t;
+					sys_tensors_ptrs[k] = &t;
 				});
+				for (size_t layer = 0; layer < sys_tensors_ptrs.size(); layer ++) {
+					if (sys_tensors_ptrs[layer]->size() != 0) {
+						for (auto l = this->send_back_paras[(*i).slave_index][layer].begin(), m = sys_tensors_ptrs[layer]->begin(); m != sys_tensors_ptrs[layer]->end(); l++, m++) {
+							*l = *m;
+						}
+					}
+				}
 
 				this->send_back_flags[ (*i).slave_index] = 1;
 
