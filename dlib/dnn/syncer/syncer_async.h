@@ -70,13 +70,21 @@ void dnn_async_leader<trainer_type>::async_thread (int slave_index) {
 
 		std::cout << "Recieved from slave " << slave_index << std::endl;
 
+		auto process_time = system_clock::now();
+
 		task t (slave_index, 1, gradients);
 		this->tq.add_task (t);
 		this->trainer->train_noop();	// HPZ: Very important
 
 		while (this->send_back_flags[slave_index] == 0) {}
 
+		std::cout << "(proc time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - process_time).count() << std::endl;  // HPZ: Counting
+
+
+		auto sync_time = system_clock::now();
 		this->send_parameters (slave_index, this->send_back_paras[slave_index]);
+		std::cout << "(send time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
+
 
 		this->send_back_flags[slave_index] = 0;
 
