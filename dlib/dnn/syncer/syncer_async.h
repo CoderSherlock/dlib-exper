@@ -187,6 +187,7 @@ void dnn_async_leader<trainer_type>::sync() {
 					}
 				}
 
+				//sleep(10000);
 				this->send_back_flags[ (*i).slave_index] = 1;
 
 				while (this->tq.queue_lock.trylock() == 0) {};
