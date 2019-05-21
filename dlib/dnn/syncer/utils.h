@@ -291,7 +291,7 @@ int recieve_compressed_tensor (connection *src, tensor *container) {
 
 	float *tmpPtr = (float *)&deflated_buffer[0];
 
-	for (auto j = container->begin(); j != container->begin() + container->size(); j++) {
+	for (auto j = container->begin(); j != container->end(); j++) {
 		*j = *tmpPtr;
 		tmpPtr++;
 	}
