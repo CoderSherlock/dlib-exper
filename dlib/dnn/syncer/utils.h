@@ -153,7 +153,7 @@ void send_compressed_tensor (connection *dest, tensor *tensor) {
 
 	char *write_Ptr = tmpBuf;
 	size_t write_length = 0;
-	size_t write_max = sizeof (float) * tensor->size() / 2;
+	size_t write_max = sizeof (float) * tensor->size();
 
 	while (write_length + COMP_BUFFER_SIZE <= write_max) {
 		int size = dest->write (write_Ptr, COMP_BUFFER_SIZE);
@@ -239,8 +239,6 @@ int recieve_compressed_tensor (connection *src, tensor *container) {
 	try {
 		length = atoi (sizeBuf);
 
-		length /= 2;
-
 		if (SYNC_VERBOSE)
 			std::cout << "[!]Start recieving tensor, the size is " << length
 					  << std::endl;
@@ -249,7 +247,7 @@ int recieve_compressed_tensor (connection *src, tensor *container) {
 	}
 
 	try {
-		if (container->size() != (length * 2 / sizeof (*container->begin()))) {
+		if (container->size() != (length / sizeof (*container->begin()))) {
 			std::cerr << "The buffer is " << sizeBuf << ", which supposed to be "
 					  << container->size() << std::endl;
 			std::cerr << "Recieving size is not same as container" << std::endl;
@@ -293,7 +291,7 @@ int recieve_compressed_tensor (connection *src, tensor *container) {
 
 	float *tmpPtr = (float *)&deflated_buffer[0];
 
-	for (auto j = container->begin(); j != container->begin() + container->size() / 2; j++) {
+	for (auto j = container->begin(); j != container->begin() + container->size(); j++) {
 		*j = *tmpPtr;
 		tmpPtr++;
 	}
