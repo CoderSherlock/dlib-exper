@@ -132,6 +132,9 @@ void dnn_async_leader<trainer_type>::send_parameters (int slave_index, std::vect
 template<typename trainer_type>
 void dnn_async_leader<trainer_type>::sync() {
 
+	int threshold = 3 * this->ending_time / 12;
+
+
 	while (1) {
 
 		while (this->tq.queue_lock.trylock() == 0) {};
@@ -198,6 +201,23 @@ void dnn_async_leader<trainer_type>::sync() {
 
 				break;
 			}
+		}
+
+		int printflag = 1;
+
+		for (auto i : this->counter) {
+			if (i <= threshold) {
+				printflag = 0;
+				break;
+			}
+		}
+
+		if (printflag) {
+			std::cout << "---------------------------" << std::endl;
+		    std::cout << "|Milestone " << threshold <<" batches   |" << std::endl;
+		    std::cout << "---------------------------" << std::endl;
+			threshold += 3 * this->ending_time / 12;
+			sleep(2000);
 		}
 
 		int flag = 1;

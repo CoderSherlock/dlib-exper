@@ -139,6 +139,10 @@ int main (int argc, char **argv) try {
 	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	using trainer_type = dnn_trainer<net_type>;
 
+	char sync_filename[30];
+	sprintf (sync_filename, "backup.%s.mm", "pe_test");
+	trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
+
 #if !ASYNC
 	dnn_leader<trainer_type> syncer(&trainer, 0);
 #else
@@ -229,7 +233,7 @@ int main (int argc, char **argv) try {
 #else
 	auto real_time = system_clock::now();
 	auto print_time = 0;
-	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 5;
+	syncer.ending_time = ceil ((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 12;
 	std::cout << syncer.ending_time << std::endl;
 
 	syncer.sync();
