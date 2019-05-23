@@ -121,7 +121,7 @@ void dnn_async_leader<trainer_type>::send_parameters (int slave_index, std::vect
 
 	for (size_t i = 0; i < tensors.size(); i++) {
 		if (tensors[i].size() != 0) {
-			print_tensor (&tensors[i], 10);
+			// print_tensor (&tensors[i], 10);
 			network::send_compressed_tensor (this->slaves_conns[slave_index], &tensors[i]);
 		}
 	}
@@ -214,8 +214,24 @@ void dnn_async_leader<trainer_type>::sync() {
 
 		if (printflag) {
 			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
 		    std::cout << "|Milestone " << threshold <<" batches   |" << std::endl;
 		    std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "---------------------------" << std::endl;
 			threshold += 3 * this->ending_time / 12;
 			sleep(2000);
 		}

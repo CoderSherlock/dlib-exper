@@ -233,7 +233,7 @@ int recieve_tensor (connection *src, tensor *container) {
 int recieve_compressed_tensor (connection *src, tensor *container) {
 	char sizeBuf[30];
 	src->read (sizeBuf, 30);
-	std::cout << sizeBuf << std::endl;
+	//std::cout << sizeBuf << std::endl;
 	size_t length = 0;
 
 	try {
