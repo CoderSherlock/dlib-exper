@@ -3,258 +3,263 @@
 
 #include "syncer.h"
 
-namespace dlib {
+namespace dlib
+{
 
-template<typename trainer_type>
-void dnn_async_leader<trainer_type>::init_reciever_pool() {
+template <typename trainer_type>
+void dnn_async_leader<trainer_type>::init_receiver_pool()
+{
 
 	// Initiliaze parameters storage for each thread
 	std::vector<tensor *> tensors;
-	tensors.resize (this->trainer->num_computational_layers);
-	visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t i, tensor & t) {
+	tensors.resize(this->trainer->num_computational_layers);
+	visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
 		tensors[i] = &t;
 	});
 
-	this->send_back_paras.resize (this->get_running_slaves_num());
-	// this->send_back_flags.resize (this->get_running_slaves_num());
-	this->send_back_flags = new int[this->get_running_slaves_num()];
+	this->latest_paras.resize(this->get_running_slaves_num());
+	this->idle_worker = new bool[this->get_running_slaves_num()];
 
-	for (size_t i = 0; i < this->send_back_paras.size(); i++) {
-		this->send_back_paras[i].resize (this->trainer->num_computational_layers);
+	this->job_signal_mutex = new mutex *[this->get_running_slaves_num()];
+	this->job_signal = new signaler *[this->get_running_slaves_num()];
+	this->signal_status = new bool[this->get_running_slaves_num()];
 
-		for (size_t j = 0; j < this->send_back_paras[i].size(); j++) {
-			this->send_back_paras[i][j].copy_size (*tensors[j]);
+	for (size_t i = 0; i < this->latest_paras.size(); i++)
+	{
+		this->latest_paras[i].resize(this->trainer->num_computational_layers);
+
+		for (size_t j = 0; j < this->latest_paras[i].size(); j++)
+		{
+			this->latest_paras[i][j].copy_size(*tensors[j]);
 		}
 
-		this->send_back_flags[i] = 0;
+		this->idle_worker[i] = true;
+		this->job_signal_mutex[i] = new mutex();
+		this->job_signal[i] = new signaler(*this->job_signal_mutex[i]);
+		this->signal_status[i] = false;
 	}
 
 	// Just for exper
-	this->counter.resize (this->get_running_slaves_num());
+	this->counter.resize(this->get_running_slaves_num());
 
-	for (auto i : this->counter) {
+	for (auto i : this->counter)
+	{
 		i = 0;
 	}
 
-	// Initialize reciever threads
-	this->recievers.resize (this->get_running_slaves_num());
+	// Initialize receiver threads
+	this->receivers.resize(this->get_running_slaves_num());
 
-	for (size_t i = 0; i < this->recievers.size(); i++) {
-		this->recievers[i] = new std::thread (&dnn_async_leader::async_thread, this, i);
+	for (size_t i = 0; i < this->receivers.size(); i++)
+	{
+		this->receivers[i] = new std::thread(&dnn_async_leader::async_thread, this, i);
 	}
 };
 
+template <typename trainer_type>
+void dnn_async_leader<trainer_type>::async_thread(int slave_index)
+{
 
-template<typename trainer_type>
-void dnn_async_leader<trainer_type>::async_thread (int slave_index) {
-
-	// Initialize the reciever structure
+	// Initialize the receiver structure
 	std::vector<tensor *> tensors;
-	tensors.resize (this->trainer->num_computational_layers);
-	visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t i, tensor & t) {
+	tensors.resize(this->trainer->num_computational_layers);
+	visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
 		tensors[i] = &t;
 	});
 
 	std::vector<resizable_tensor> gradients;
-	gradients.resize (this->trainer->num_computational_layers);
+	gradients.resize(this->trainer->num_computational_layers);
 
-	for (size_t i = 0; i < gradients.size(); i++) {
-		gradients[i].copy_size (*tensors[i]);
+	for (size_t i = 0; i < gradients.size(); i++)
+	{
+		gradients[i].copy_size(*tensors[i]);
 	}
 
-	while (1) {
-		this->recieve_gradients_from_one (slave_index, gradients);
+	while (1)
+	{
+		this->job_signal_mutex[slave_index]->lock();
+		if (this->signal_status[slave_index] != true)
+			this->job_signal[slave_index]->wait();
+
+		this->job_signal_mutex[slave_index]->unlock();
+
+		this->signal_status[slave_index] = false;
+
+		this->trainer->read_lock.lock();
+		std::vector<tensor *> sys_tensors_ptrs;
+		sys_tensors_ptrs.resize(this->trainer->num_computational_layers);
+		visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t k, tensor &t) {
+			sys_tensors_ptrs[k] = &t;
+		});
+		for (size_t layer = 0; layer < sys_tensors_ptrs.size(); layer++)
+		{
+			if (sys_tensors_ptrs[layer]->size() != 0)
+			{
+				for (auto l = this->latest_paras[slave_index][layer].begin(), m = sys_tensors_ptrs[layer]->begin(); m != sys_tensors_ptrs[layer]->end(); l++, m++)
+				{
+					*l = *m;
+					if (std::isnan(*m))
+						std::cout << "wtf" << std::endl;
+				}
+			}
+		}
+		this->trainer->read_lock.unlock();
+
+		this->send_parameters(slave_index, this->latest_paras[slave_index]);
+
+		this->receive_gradients_from_one(slave_index, gradients);
 
 		if (this->slaves_status[slave_index] != slaveStatus::Running)
 			break;
 
-		std::cout << "Recieved from slave " << slave_index << std::endl;
+		std::cout << "Received from slave " << slave_index << std::endl;
 
-		auto process_time = system_clock::now();
+		task t(slave_index, 1, gradients);
+		this->tq.add_task(t);
+		// this->trainer->train_noop(); // HPZ: Very important
 
-		task t (slave_index, 1, gradients);
-		this->tq.add_task (t);
-		this->trainer->train_noop();	// HPZ: Very important
-
-		while (this->send_back_flags[slave_index] == 0) {}
-
-		std::cout << "(proc time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - process_time).count() << std::endl;  // HPZ: Counting
-
-
-		auto sync_time = system_clock::now();
-		this->send_parameters (slave_index, this->send_back_paras[slave_index]);
-		std::cout << "(send time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
-
-
-		this->send_back_flags[slave_index] = 0;
-
-		// Just for exper
-		this->counter[slave_index] ++;
+		this->counter[slave_index]++;
 
 		if (this->counter[slave_index] >= this->ending_time)
 			break;
+
+		this->idle_worker[slave_index] = true;
 	}
 };
 
-template<typename trainer_type>
-int dnn_async_leader<trainer_type>::recieve_gradients_from_one (int slave_index, std::vector<resizable_tensor> &cli_tensors) {
+template <typename trainer_type>
+int dnn_async_leader<trainer_type>::receive_gradients_from_one(int slave_index, std::vector<resizable_tensor> &cli_tensors)
+{
 	// std::cout << slave_index << ":" << &this->slaves_conns << std::endl;
 
-	try {
-		for (size_t i = 0; i < cli_tensors.size(); i++) {
-			if (cli_tensors[i].size() != 0) {
-				network::recieve_compressed_tensor (this->slaves_conns[slave_index], &cli_tensors[i]);
+	try
+	{
+		for (size_t i = 0; i < cli_tensors.size(); i++)
+		{
+			if (cli_tensors[i].size() != 0)
+			{
+				network::receive_compressed_tensor(this->slaves_conns[slave_index], &cli_tensors[i]);
 			}
 		}
-	} catch (...) {
+	}
+	catch (...)
+	{
 		std::cout << "It seems that slave " << slave_index << " closed" << std::endl;
 		this->slaves_status[slave_index] = slaveStatus::NotConn;
-		close_gracefully (this->slaves_conns[slave_index], 1);
+		close_gracefully(this->slaves_conns[slave_index], 1);
 	}
 
 	return 1;
 };
 
+template <typename trainer_type>
+void dnn_async_leader<trainer_type>::send_parameters(int slave_index, std::vector<resizable_tensor> &tensors)
+{
 
-template<typename trainer_type>
-void dnn_async_leader<trainer_type>::send_parameters (int slave_index, std::vector<resizable_tensor> &tensors) {
-
-	for (size_t i = 0; i < tensors.size(); i++) {
-		if (tensors[i].size() != 0) {
+	for (size_t i = 0; i < tensors.size(); i++)
+	{
+		if (tensors[i].size() != 0)
+		{
 			// print_tensor (&tensors[i], 10);
-			network::send_compressed_tensor (this->slaves_conns[slave_index], &tensors[i]);
+			network::send_compressed_tensor(this->slaves_conns[slave_index], &tensors[i]);
 		}
 	}
-
 }
 
-
-template<typename trainer_type>
-void dnn_async_leader<trainer_type>::sync() {
+template <typename trainer_type>
+void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
+{
 
 	int threshold = 3 * this->ending_time / 12;
+	unsigned long current_start = 0;
 
+	while (1)
+	{
+		// Check idle workers & dispatch jobs
+		for (int i = 0; i < this->slaves_status.size(); i++)
+		{
+			if (this->slaves_status[i] == slaveStatus::Running && this->idle_worker[i] == true)
+			{
+				task_op worker_job;
+				unsigned long start = current_start, end = (current_start + 128 >= training_size - 1 ? training_size - 1 : current_start + 128);
+				worker_job.opcode = 1;
+				std::memcpy(&worker_job.operand1, &start, sizeof(worker_job.operand1));
+				std::memcpy(&worker_job.operand2, &end, sizeof(worker_job.operand2));
 
-	while (1) {
+				std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
+				this->dispatch_jobs(i, worker_job);
+				this->job_signal_mutex[i]->lock();
+				this->signal_status[i] = true;
+				this->job_signal_mutex[i]->unlock();
+				this->job_signal[i]->signal();
+				this->idle_worker[i] = false;
 
-		while (this->tq.queue_lock.trylock() == 0) {};
+				current_start = ((current_start + 128 >= training_size - 1 ? 0 : current_start + 128));
+			}
+		}
 
+		// Checking updated gradients.
+		while (this->tq.queue_lock.trylock() == 0)
+		{
+		};
 		auto i = this->tq.queue.begin();
+		if (i == this->tq.queue.end())
+		{
+			int flag = 1;
 
-		for (i = this->tq.queue.begin(); i != this->tq.queue.end(); i ++) {
-			if ((*i).ready == 1) {
-
-				while (this->trainer->status_lock.trylock() == 0);
-
-				this->trainer->synchronization_status = 0;
-				this->trainer->status_lock.unlock();
-
-				// Let's rock it!
-				(*i).ready = 0;
-				this->tq.queue_lock.unlock();
-
-				// Update to trainer
-				std::vector<tensor *> temp (this->trainer->num_computational_layers);
-
-				for (size_t j = 0; j < temp.size(); j ++) {
-					temp[j] = & ((*i).tensors[j]);
+			for (auto i : this->counter)
+			{
+				if (i < this->ending_time)
+				{
+					flag = 0;
+					break;
 				}
-
-				while (this->trainer->synchronization_status != 1) { }
-
-				this->update_gradients (temp);
-
-				while (this->trainer->status_lock.trylock() == 0);
-
-				if (this->trainer->synchronization_status != 1)
-					std::cout << "Something wrong with sync lock: current: " << this->trainer->synchronization_status << "\t Going to set: 2" << std::endl;
-
-				this->trainer->synchronization_status = 2;
-				this->trainer->status_lock.unlock();
-
-				// Wait for result
-				while (this->trainer->synchronization_status != 4) { }
-
-				std::vector<tensor *> sys_tensors_ptrs;
-				sys_tensors_ptrs.resize(this->trainer->num_computational_layers);
-				visit_layer_parameters (this->trainer->devices[0]->net, [&] (size_t k, tensor & t) {
-					// std::cout << "SP get parameteres from" << &t << std::endl;
-					//this->send_back_paras[ (*i).slave_index][k] = t;
-					sys_tensors_ptrs[k] = &t;
-				});
-				for (size_t layer = 0; layer < sys_tensors_ptrs.size(); layer ++) {
-					if (sys_tensors_ptrs[layer]->size() != 0) {
-						for (auto l = this->send_back_paras[(*i).slave_index][layer].begin(), m = sys_tensors_ptrs[layer]->begin(); m != sys_tensors_ptrs[layer]->end(); l++, m++) {
-							*l = *m;
-						}
-					}
-				}
-
-				//sleep(10000);
-				this->send_back_flags[ (*i).slave_index] = 1;
-
-				while (this->tq.queue_lock.trylock() == 0) {};
-
-				this->tq.queue.erase (i);
-
-				this->tq.queue_lock.unlock();
-
-				break;
 			}
-		}
 
-		int printflag = 1;
-
-		for (auto i : this->counter) {
-			if (i <= threshold) {
-				printflag = 0;
+			if (flag)
 				break;
+
+			continue;
+		}
+
+		if ((*i).ready == 1)
+		{
+
+			// Let's rock it!
+			(*i).ready = 0;
+			this->tq.queue_lock.unlock();
+
+			// Update to trainer
+			std::vector<tensor *> temp(this->trainer->num_computational_layers);
+
+			for (size_t j = 0; j < temp.size(); j++)
+			{
+				temp[j] = &((*i).tensors[j]);
 			}
+
+			this->update_gradients(temp);
+
+			this->trainer->read_lock.lock();
+			this->trainer->update_parameters();
+			this->trainer->read_lock.unlock();
+			//sleep(10000);
+
+			while (this->tq.queue_lock.trylock() == 0)
+			{
+			};
+
+			this->tq.queue.erase(i);
+
+			this->tq.queue_lock.unlock();
 		}
-
-		if (printflag) {
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-		    std::cout << "|Milestone " << threshold <<" batches   |" << std::endl;
-		    std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			threshold += 3 * this->ending_time / 12;
-			sleep(2000);
-		}
-
-		int flag = 1;
-
-		for (auto i : this->counter) {
-			if (i < this->ending_time) {
-				flag = 0;
-				break;
-			}
-		}
-
-		if (flag)
-			break;
-
 	}
 
-	for (size_t i = 0; i < this->recievers.size(); i ++) {
-		this->recievers[i]->join();
+	for (size_t i = 0; i < this->receivers.size(); i++)
+	{
+		this->receivers[i]->join();
 	}
 };
 
-}
+} // namespace dlib
 
 #endif

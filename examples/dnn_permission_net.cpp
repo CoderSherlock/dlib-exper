@@ -47,7 +47,7 @@ int main (int argc, char **argv) try {
 
 	// This example is going to run on the MNIST dataset.
 	if (argc < 2) {
-		cout << "Master program has invalid argumnets" << endl;
+		cout << "Fuck this off" << endl;
 		return 1;
 	}
 	

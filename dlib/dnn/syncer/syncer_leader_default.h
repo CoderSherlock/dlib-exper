@@ -81,7 +81,7 @@ void dnn_syncer<trainer_type>::update (std::vector<tensor *> &updated) {
  *  send_parameters_to_slaves_serialism: send parameters to all slaves in serial
  *  send_parameters_to_slaves_paralized: send parameters to all slaves in parali
  *  sn_sync: sync procedure/ call every round
- *  recieve_gradients_from_one: recieve gradients from specific slave
+ *  receive_gradients_from_one: receive gradients from specific slave
  ===================================================================================*/
 template <typename trainer_type>
 void dnn_leader<trainer_type>::add_slave (device slave) {
@@ -197,31 +197,31 @@ void dnn_leader<trainer_type>::send_parameters_to_slaves_serialised () {
  ******************************************************/
 template<typename trainer_type>
 void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized () {
-	std::vector<std::thread *> recievers;
-	recievers.resize (this->slaves_list.size());
+	std::vector<std::thread *> receivers;
+	receivers.resize (this->slaves_list.size());
 
-	for (size_t i = 0; i < recievers.size(); i++) {
+	for (size_t i = 0; i < receivers.size(); i++) {
 		if (this->slaves_status[i] == slaveStatus::Running)
-			recievers[i] = new std::thread (&dnn_leader::send_parameters, this, this->slaves_conns[i]);
+			receivers[i] = new std::thread (&dnn_leader::send_parameters, this, this->slaves_conns[i]);
 	}
 
-	for (size_t i = 0; i < recievers.size(); i++) {
-		recievers[i]->join();
+	for (size_t i = 0; i < receivers.size(); i++) {
+		receivers[i]->join();
 	}
 
-	for (size_t i = 0; i < recievers.size(); i++) {
-		delete recievers[i];
+	for (size_t i = 0; i < receivers.size(); i++) {
+		delete receivers[i];
 	}
 }
 
 
 template<typename trainer_type>
-int dnn_leader<trainer_type>::recieve_gradients_from_one (int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors) {
+int dnn_leader<trainer_type>::receive_gradients_from_one (int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors) {
 
 	for (size_t i = 0; i < cli_tensors[slave_index].size(); i++) {
 		if (cli_tensors[slave_index][i].size() != 0) {
-			// this->recieve_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
-			network::recieve_compressed_tensor (this->slaves_conns[slave_index], &cli_tensors[slave_index][i]);
+			// this->receive_tensor(this->slave_conns[slave_index], &cli_tensors[slave_index][i]);
+			network::receive_compressed_tensor (this->slaves_conns[slave_index], &cli_tensors[slave_index][i]);
 
 			// print_tensor(&cli_tensors[slave_index][i], cli_tensors[slave_index][i].size());
 		}
@@ -231,7 +231,7 @@ int dnn_leader<trainer_type>::recieve_gradients_from_one (int slave_index, std::
 }
 
 template<typename trainer_type>
-void dnn_leader<trainer_type>::init_before_recieving (std::vector<std::vector<resizable_tensor>> &all_tensors) {
+void dnn_leader<trainer_type>::init_before_receiving (std::vector<std::vector<resizable_tensor>> &all_tensors) {
 	// Get the pointer of gradients from current device
 	std::vector<tensor *> tensors;
 	tensors.resize (this->trainer->num_computational_layers);
@@ -254,15 +254,15 @@ void dnn_leader<trainer_type>::init_before_recieving (std::vector<std::vector<re
 }
 
 template<typename trainer_type>
-void dnn_leader<trainer_type>::recieve_gradients_serialism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
-	init_before_recieving (all_tensors);
+void dnn_leader<trainer_type>::receive_gradients_serialism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
+	init_before_receiving (all_tensors);
 
 	// Get gradients if there exists slave machine
 	if (this->get_running_slaves_num() != 0) {
 		for (int s_c = 0, s_c_max = this->slaves_status.size(); s_c < s_c_max ; s_c ++) {
 			if (this->slaves_status[s_c] == slaveStatus::Running) {
 				std::cout << "Reciveing from " << s_c << std::endl;
-				recieve_gradients_from_one (s_c, all_tensors);
+				receive_gradients_from_one (s_c, all_tensors);
 			}
 		}
 	}
@@ -270,22 +270,22 @@ void dnn_leader<trainer_type>::recieve_gradients_serialism (std::vector<std::vec
 
 
 template<typename trainer_type>
-void dnn_leader<trainer_type>::recieve_gradients_parallism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
-	init_before_recieving (all_tensors);
-	std::vector<std::thread *> recievers;
-	recievers.resize (all_tensors.size());
+void dnn_leader<trainer_type>::receive_gradients_parallism (std::vector<std::vector<resizable_tensor>> &all_tensors) {
+	init_before_receiving (all_tensors);
+	std::vector<std::thread *> receivers;
+	receivers.resize (all_tensors.size());
 
-	for (size_t i = 0; i < recievers.size(); i++) {
+	for (size_t i = 0; i < receivers.size(); i++) {
 		if (this->slaves_status[i] == slaveStatus::Running)
-			recievers[i] = new std::thread (&dnn_leader::recieve_gradients_from_one, this, i, std::ref (all_tensors));
+			receivers[i] = new std::thread (&dnn_leader::receive_gradients_from_one, this, i, std::ref (all_tensors));
 	}
 
-	for (size_t i = 0; i < recievers.size(); i++) {
-		recievers[i]->join();
+	for (size_t i = 0; i < receivers.size(); i++) {
+		receivers[i]->join();
 	}
 
-	for (size_t i = 0; i < recievers.size(); i++) {
-		delete recievers[i];
+	for (size_t i = 0; i < receivers.size(); i++) {
+		delete receivers[i];
 	}
 }
 
@@ -323,12 +323,12 @@ void dnn_leader<trainer_type>::sn_sync() {
 	auto epoch_time = system_clock::now();  // HPZ: Counting
 	////////////////////////////////////////////////////////////
 
-	// recieve_gradients_serialism(all_tensors);
-	this->recieve_gradients_parallism (all_tensors);
+	// receive_gradients_serialism(all_tensors);
+	this->receive_gradients_parallism (all_tensors);
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	if (this->exper)																															//
-		std::cout << "(Time for recieve_tensor) is "																							//
+		std::cout << "(Time for receive_tensor) is "																							//
 				  << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;   				 	//
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

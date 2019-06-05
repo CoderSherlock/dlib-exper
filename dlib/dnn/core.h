@@ -888,6 +888,27 @@ namespace dlib
             subnetwork->update_parameters(solvers.pop(), learning_rate);
         }
 
+        template <typename solver_type>
+        void update_parameters(sstack<solver_type> solvers, double learning_rate, resizable_tensor grad)
+        {
+			// HPZ: In reverse sequence, solvers.size is decreasing
+			//		num_computational_layers => Layer's index
+            DLIB_CASSERT(solvers.size()>=num_computational_layers);
+
+            // Don't try to adjust the parameters if this layer doesn't have any or the
+            // learning rate is disabled for this layer.
+            if (params_grad.size() != 0 && get_learning_rate_multiplier(details) != 0)
+            {
+				// HPZ: learning result are temporarlly stored in solvers, so now.
+				//		Caculate delta result with params_grad and learning_rate	
+                const tensor& step = solvers.top()(learning_rate, details, static_cast<const tensor&>(grad));
+
+				// HPZ: Add delta to the original layers' paramaters
+                tt::add(details.get_layer_params(), details.get_layer_params(), step);
+            }
+            subnetwork->update_parameters(solvers.pop(), learning_rate);
+        }
+
         const tensor& get_parameter_gradient(
         ) const { return params_grad; }
 

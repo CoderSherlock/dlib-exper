@@ -84,7 +84,7 @@ namespace dlib
         dnn_trainer(const dnn_trainer&) = delete;
         dnn_trainer& operator=(const dnn_trainer&) = delete;
 
-        explicit dnn_trainer(net_type& net_) : job_pipe(0), net(net_)
+        explicit dnn_trainer(net_type& net_) : job_pipe(0), net(net_), distributed_signal(this->status_lock)
         {
             solver_type default_solver;
             devices.push_back(std::make_shared<device_data>(dlib::cuda::get_device(), net, default_solver));
@@ -758,11 +758,21 @@ namespace dlib
 
 
             main_iteration_counter = 0;
+
+
+            this->ready_status = 1;
+            
+
+
             while(job_pipe.dequeue(next_job))
             {
 				if (isDistributed)
 				{
-					while(synchronization_status != 0) { }
+                    this->distributed_signal.get_mutex().lock();
+                    if (ready_status != 2)
+                        distributed_signal.wait();
+                    
+                    this->status_lock.unlock();
 				}					
 				
                 if (next_job.test_only)
@@ -816,32 +826,7 @@ namespace dlib
 
                 // Now, if there is more than one active device we need to synchronize the
                 // gradient updates between devices.  So we do that now.
-
-
-                // HPZ: This part is trying to get all paramaters
-				// std::cout << devices[0]->net << std::endl;
-                
-                // long long size = 0;
-                // long long amount = 0;
-                // for (size_t i = 0; i < devices.size(); ++i)
-                // {
-                //     visit_layer_parameter_gradients(devices[i]->net, [&](size_t j, tensor& t){
-				//         std::cout << &t << "\t:";
-				//         std::cout << t.num_samples() << "\t";
-                //         amount += t.size();
-                //         for(auto s = t.begin(); s != t.end(); s ++){
-				//             std::cout << *s << "  ";
-                //             size += sizeof(*s);
-                //         }
-				//         std::cout << t.begin() << std::endl;
-				//         std::cout << std::endl;
-                //     });
-                // }
-				// std::cout << "amount paramater: " << amount << std::endl;
-				// std::cout << "size of paramater: " << size << std::endl;
-				// sleep(1000);
-				
-                
+               
                 if (devices.size() > 1)
                 {
                     // if this is the first iteration then we need to setup the averagers.
@@ -892,21 +877,11 @@ namespace dlib
 				// std::cout << "Sync" << std::endl;
 				if (isDistributed)
 				{
-					while(status_lock.trylock() == 0);
-					if (synchronization_status != 0)
-						std::cout << "Something wrong with sync lock: current: " << synchronization_status << "\t Going to set: 1" << std::endl;
-					synchronization_status = 1;
-					// std::cout << "[trainer]: train completed" << std::endl;
-					status_lock.unlock();
-
-					while(synchronization_status != 2 && synchronization_status != 3) {}
-					if (synchronization_status == 3) {
-						// continue;
-						goto end;
-					}
-					// std::cout << "[trainer]: Start to update" << std::endl;
+                    this->distributed_signal.get_mutex().lock();
+                    this->ready_status = 3;
+                    this->status_lock.unlock();
+                    distributed_signal.signal();
 				}					
-				// std::cout << "Update" << std::endl;
 
                 for (size_t i = 0; i < devices.size(); ++i)
 					tp[i]->add_task_by_value([&,i](){ update_parameters(i); });
@@ -980,16 +955,8 @@ end:
                         learning_rate = lr_schedule(lr_schedule.size()-1)*0.99;
                 }
 
-
-				if(isDistributed)
-				{
-					while(status_lock.trylock() == 0);
-					if (synchronization_status != 2 && synchronization_status != 3)
-						std::cout << "Something wrong with sync lock: current: " << synchronization_status << "\t Going to set: 3" << std::endl;
-					synchronization_status = 4;
-					// std::cout << "[trainer]: one job completed" << std::endl;
-					status_lock.unlock();
-				}
+                if (isDistributed)
+                    ready_status = 4;
             }
         }
         catch(...)
@@ -1001,14 +968,32 @@ end:
         }
 
 	public:
+
+        void update_parameters() 
+        {
+            std::vector<std::shared_ptr<thread_pool>> tp;
+            for (size_t i = 0; i < devices.size(); ++i)
+                tp.push_back(std::make_shared<thread_pool>(1));
+
+            for (size_t i = 0; i < devices.size(); ++i)
+					tp[i]->add_task_by_value([&,i](){ update_parameters(i); });
+					// tp[i]->add_task_by_value([&,i](){ if (next_job.have_data[i]) update_parameters(i); });
+                // and wait for the updates to all happen.
+                for (size_t i = 0; i < devices.size(); ++i)
+                    tp[i]->wait_for_all_tasks();
+        }
+
         void wait_for_thread_to_pause() const
         {
             job_pipe.wait_for_num_blocked_dequeues(1);
         }
 
-		const mutex status_lock;
 		bool isDistributed = 0;
-		volatile int synchronization_status = 4;
+        int ready_status = 0;
+		const mutex status_lock;
+        signaler distributed_signal;
+        const mutex read_lock;
+
 	private:
 
         const static long string_pad = 11;
@@ -1047,6 +1032,9 @@ end:
 
             rs_test = running_stats_decayed<double>(200);
 
+            // HPZ: Add some initlization
+            // distributed_signal = 
+            
             start();
         }
 
