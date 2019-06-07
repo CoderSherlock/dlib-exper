@@ -328,6 +328,7 @@ namespace dlib
             resizable_tensor& data
         ) const
         {
+            std::cout << std::distance(ibegin,iend) << std::endl;
             DLIB_CASSERT(std::distance(ibegin,iend) > 0);
             const auto nr = ibegin->nr();
             const auto nc = ibegin->nc();

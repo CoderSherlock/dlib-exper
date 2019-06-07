@@ -83,6 +83,9 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 
 		this->job_signal_mutex[slave_index]->unlock();
 
+		if (this->slaves_status[slave_index] != slaveStatus::Running)
+			break;
+
 		this->signal_status[slave_index] = false;
 
 		this->trainer->read_lock.lock();
@@ -109,9 +112,6 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 
 		this->receive_gradients_from_one(slave_index, gradients);
 
-		if (this->slaves_status[slave_index] != slaveStatus::Running)
-			break;
-
 		std::cout << "Received from slave " << slave_index << std::endl;
 
 		task t(slave_index, 1, gradients);
@@ -120,8 +120,8 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 
 		this->counter[slave_index]++;
 
-		if (this->counter[slave_index] >= this->ending_time)
-			break;
+		// if (this->counter[slave_index] >= this->ending_time)
+		// 	break;
 
 		this->idle_worker[slave_index] = true;
 	}
@@ -169,8 +169,7 @@ void dnn_async_leader<trainer_type>::send_parameters(int slave_index, std::vecto
 template <typename trainer_type>
 void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 {
-
-	int threshold = 3 * this->ending_time / 12;
+	int epoch = 1, batch_amount = std::ceil((float)training_size / 128) * this->ending_time, batch_pos = 1;
 	unsigned long current_start = 0;
 
 	while (1)
@@ -178,6 +177,12 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 		// Check idle workers & dispatch jobs
 		for (int i = 0; i < this->slaves_status.size(); i++)
 		{
+			if (epoch >= batch_amount)
+			{
+				std::cout << "Break!" << std::endl;
+				break;
+			}
+
 			if (this->slaves_status[i] == slaveStatus::Running && this->idle_worker[i] == true)
 			{
 				task_op worker_job;
@@ -194,6 +199,15 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 				this->job_signal[i]->signal();
 				this->idle_worker[i] = false;
 
+				// if (current_start + 128 >= training_size - 1)
+				// {
+				// 	epoch += 1;
+				// 	std::cout << "-----" << std::endl;
+				// 	std::cout << "|" << epoch << "|" << std::endl;
+				// 	std::cout << "-----" << std::endl;
+				// }
+				epoch += 1;
+
 				current_start = ((current_start + 128 >= training_size - 1 ? 0 : current_start + 128));
 			}
 		}
@@ -205,19 +219,25 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 		auto i = this->tq.queue.begin();
 		if (i == this->tq.queue.end())
 		{
-			int flag = 1;
+			// int flag = 1;
 
-			for (auto i : this->counter)
+			// for (auto i : this->counter)
+			// {
+			// 	if (i < this->ending_time)
+			// 	{
+			// 		flag = 0;
+			// 		break;
+			// 	}
+			// }
+
+			// if (flag)
+			// 	break;
+
+			if (batch_pos >= batch_amount)
 			{
-				if (i < this->ending_time)
-				{
-					flag = 0;
-					break;
-				}
-			}
-
-			if (flag)
+				std::cout << "Finished training task" << std::endl;
 				break;
+			}
 
 			continue;
 		}
@@ -249,6 +269,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 			};
 
 			this->tq.queue.erase(i);
+			batch_pos += 1;
 
 			this->tq.queue_lock.unlock();
 		}
@@ -256,6 +277,11 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 
 	for (size_t i = 0; i < this->receivers.size(); i++)
 	{
+		this->slaves_status[i] = slaveStatus::NotConn;
+	}
+	for (size_t i = 0; i < this->receivers.size(); i++)
+	{
+		this->job_signal[i]->signal();
 		this->receivers[i]->join();
 	}
 };

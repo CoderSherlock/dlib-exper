@@ -184,9 +184,13 @@ int main(int argc, char **argv) try
 		{
 			unsigned long start = *(unsigned long *)&operation.operand1, end = *(unsigned long *)&operation.operand2;
 			std::cout << start << "~" << end << std::endl;
+			std::cout << "diff:" << end - start << std::endl;
 			local_training = training.split(start, end);
+			trainer.epoch_pos = 0;
 			trainer.set_mini_batch_size(end - start);
-			epoch += trainer.train_one_batch(local_training.getData(), local_training.getLabel());
+			std::cout << "mini_batch:" << trainer.get_mini_batch_size() << std::endl;
+			std::cout << "data_size:" << local_training.getData().size() << std::endl;
+			trainer.train_one_batch(local_training.getData(), local_training.getLabel());
 			syncer.pre_train(operation);
 
 			trainer.distributed_signal.get_mutex().lock();

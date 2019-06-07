@@ -171,13 +171,21 @@ int main(int argc, char **argv) try
 	while (trainer.ready_status < 1)
 	{
 	};
+	std::cout << 0 << std::endl;
+
+
+
 
 	trainer.train_one_batch(training.getData(), training.getLabel());
+		std::cout << 1 << std::endl;
 
 	trainer.distributed_signal.get_mutex().lock();
 	trainer.ready_status = 2;
+	std::cout << 2 << std::endl;
+
 	trainer.status_lock.unlock();
 	trainer.distributed_signal.signal();
+	std::cout << 3 << std::endl;
 
 	while (trainer.ready_status < 4)
 	{
@@ -247,7 +255,7 @@ int main(int argc, char **argv) try
 #else
 	auto real_time = system_clock::now();
 	auto print_time = 0;
-	syncer.ending_time = ceil((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 12;
+	syncer.ending_time = 3;
 	std::cout << syncer.ending_time << std::endl;
 
 	syncer.sync((unsigned long)training.getData().size());

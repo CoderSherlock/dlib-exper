@@ -146,6 +146,7 @@ void dnn_leader<trainer_type>::shut_slaves() {
 	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to init slaves.");
 
 	for (int i = 0; i < this->slaves_list.size(); i++ ) {
+		this->slaves_conns[i].shutdown();
 		delete this->slaves_conns[i];
 
 		this->slaves_status[i] = slaveStatus::NotConn;

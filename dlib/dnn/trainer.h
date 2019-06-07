@@ -989,7 +989,7 @@ end:
         }
 
 		bool isDistributed = 0;
-        int ready_status = 0;
+        volatile int ready_status = 0;
 		const mutex status_lock;
         signaler distributed_signal;
         const mutex read_lock;
@@ -1407,7 +1407,9 @@ end:
         std::string sync_filename;
         std::chrono::seconds time_between_syncs;
         unsigned long epoch_iteration;
+    public:
         size_t epoch_pos;
+    private:
         std::chrono::time_point<std::chrono::system_clock> last_time;
         unsigned long long train_one_step_calls;
         unsigned long long test_one_step_calls;
