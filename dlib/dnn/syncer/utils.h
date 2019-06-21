@@ -187,6 +187,8 @@ void send_compressed_tensor(connection *dest, tensor *tensor)
 	for (auto j = tensor->begin(); j != tensor->end(); j++)
 	{
 		*(tmpPtr++) = *j;
+		if (std::isnan(*j))
+			std::cout << "wtf" << std::endl;
 	}
 
 	char *write_Ptr = tmpBuf;
@@ -355,6 +357,8 @@ int receive_compressed_tensor(connection *src, tensor *container)
 	for (auto j = container->begin(); j != container->end(); j++)
 	{
 		*j = *tmpPtr;
+		if (std::isnan(*j))
+			std::cout << "wtf" << std::endl;
 		tmpPtr++;
 	}
 

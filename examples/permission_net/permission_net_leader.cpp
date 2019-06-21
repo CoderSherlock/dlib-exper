@@ -255,7 +255,7 @@ int main(int argc, char **argv) try
 #else
 	auto real_time = system_clock::now();
 	auto print_time = 0;
-	syncer.ending_time = 3;
+	syncer.ending_time = 60;
 	std::cout << syncer.ending_time << std::endl;
 
 	syncer.sync((unsigned long)training.getData().size());

@@ -103,9 +103,9 @@ public:
 				++num_right;
 			else {
 				++num_wrong;
-				if (predicted_labels[i] == 72 && this->labels[i] != 72) {
-					std::cout << "!!!!!!!!! " << i << " !!!!!!!!!!!" << std::endl;
-				}
+				// if (predicted_labels[i] == 72 && this->labels[i] != 72) {
+				// 	std::cout << "!!!!!!!!! " << i << " !!!!!!!!!!!" << std::endl;
+				// }
 			}
 		}
 		cout << "testing num_right: " << num_right << endl;

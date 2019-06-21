@@ -101,8 +101,8 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 				for (auto l = this->latest_paras[slave_index][layer].begin(), m = sys_tensors_ptrs[layer]->begin(); m != sys_tensors_ptrs[layer]->end(); l++, m++)
 				{
 					*l = *m;
-					if (std::isnan(*m))
-						std::cout << "wtf" << std::endl;
+					// if (std::isnan(*m))
+					// 	std::cout << "wtf" << std::endl;
 				}
 			}
 		}
@@ -179,7 +179,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 		{
 			if (epoch >= batch_amount)
 			{
-				std::cout << "Break!" << std::endl;
+				// std::cout << "Break!" << std::endl;
 				break;
 			}
 
