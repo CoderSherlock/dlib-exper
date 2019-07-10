@@ -13,20 +13,31 @@
 namespace dlib
 {
 
+enum device_role
+{
+	worker = 0,
+	leader = 1,
+	supleader = 2,
+	supsupleader = 3,
+	undecided = -1
+};
+
 struct device
 {
 	int number = -1;
 	std::string ip;
 	int port = 2333;
+	int role = device_role::undecided;
 
 	device() {}
 
 	device(int number_, std::string ip_, int port_)
 		: number(number_), ip(ip_), port(port_)
 	{
-		number = number_;
-		ip = ip_;
-		port = port_;
+	}
+	device(int number_, std::string ip_, int port_, int role_)
+		: number(number_), ip(ip_), port(port_), role(role_)
+	{
 	}
 }; // End of Structure device
 

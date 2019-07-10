@@ -31,6 +31,7 @@
 #include "dnn/syncer/syncer_leader_default.h"            // HPZ: Add Syncer header
 #include "dnn/syncer/syncer_worker_default.h"
 #include "dnn/syncer/syncer_async.h"				// HPZ: Add Syncer header
+#include "dnn/syncer/config.h"
 #include "cuda/cpu_dlib.h"
 #include "cuda/tensor_tools.h"
 #include "dnn/utilities.h"
