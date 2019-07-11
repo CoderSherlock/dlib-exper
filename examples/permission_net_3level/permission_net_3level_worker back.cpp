@@ -11,8 +11,6 @@
 
 #include "../dnn_dist_data.h"
 
-#define ASYNC 1
-
 using namespace std;
 using namespace dlib;
 using std::chrono::system_clock;
@@ -86,21 +84,13 @@ int main(int argc, char **argv) try
 	char* training_data_path = strdup(distributed_trainer_config.training_dataset_path.c_str());
 	
 	dataset<matrix<int>, unsigned long> training(load_permission_data, training_data_path);
-	std::list<dataset<matrix<int>, unsigned long>> testings;
-
-	for(auto testing_data_itr = distributed_trainer_config.testing_dataset_path.begin(); testing_data_itr != distributed_trainer_config.testing_dataset_path.end(); ++testing_data_itr){
-		char* testing_data_path = strdup(testing_data_itr->c_str());
-		dataset<matrix<int>, unsigned long> testing(load_permission_data, testing_data_path);
-		testings.push_back(testing);
-	}
+	
+	dataset<matrix<int>, unsigned long> local_training;
 
 	std::cout << training.getData().size() << std::endl;
 
 	int role = distributed_trainer_config.get_role(me.ip, me.port);
 	std::cout << "I'm a " << (role==0?"worker":(role==1?"leader":(role==2?"supleader":"undecided"))) << std::endl;
-
-
-	int all = 0, ben = 0;
 
 	/*
 	 * Define net_type (By CoderSherlock)
@@ -125,102 +115,93 @@ int main(int argc, char **argv) try
 	trainer.set_mini_batch_size(12);
 	trainer.be_verbose();
 
-	// HPZ: Setup synchronized protocol and test for the connection availability.
+	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
 	using trainer_type = dnn_trainer<net_type>;
 
-	char sync_filename[30];
-	sprintf(sync_filename, "backup.%s.mm", "pe_test");
-	trainer.set_synchronization_file(sync_filename, std::chrono::seconds(60));
-
-#if !ASYNC
-	dnn_leader<trainer_type> syncer(&trainer, 0);
-#else
-	dnn_async_leader<trainer_type> syncer(&trainer, 0);
-#endif
+	dnn_worker<trainer_type> syncer(&trainer);
 
 	syncer.set_this_device(me);
-	syncer.set_role(device_role::leader);
-	syncer.exper = 1;
-
-	for (int i = 0; i < slave_list.size(); i++)
-	{
-		syncer.add_slave(slave_list[i]);
-	}
 
 	trainer.isDistributed = 1;
 
 	while (trainer.ready_status < 1)
 	{
 	};
-	std::cout << 0 << std::endl;
 
 	trainer.train_one_batch(training.getData(), training.getLabel());
-	std::cout << 1 << std::endl;
 
 	trainer.distributed_signal.get_mutex().lock();
 	trainer.ready_status = 2;
-	std::cout << 2 << std::endl;
-
 	trainer.status_lock.unlock();
 	trainer.distributed_signal.signal();
-	std::cout << 3 << std::endl;
 
 	while (trainer.ready_status < 4)
 	{
 	};
 
-	std::cout << "Finish initialization training, it takes " << 0 << " seconds" << std::endl;
+	// TODO: Wait for master connect
+	if (!syncer.wait_for_master_init())
+	{
+		std::cerr << "Error happens when master send init message" << std::endl;
+		exit(0);
+	}
 
-#if !ASYNC
-	syncer.init_slaves();
-#else
-	syncer.init_slaves();
-	syncer.init_receiver_pool();
-#endif
-
-	std::cout << "Finished Initialization, now start training procedures" << std::endl;
-	syncer.print_slaves_status();
-	std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
-
-#if !ASYNC
 	int epoch = 0, batch = 0;
 	int mark = 0;
 	auto time = 0;
-	int ending = ceil((float)training.getData().size() / syncer.get_running_slaves_num() / 128) * 5;
 
 	while (true)
 	{
 		mark += 1;
 
-		trainer.train_noop();
+		task_op operation = syncer.wait_for_task();
 
-		auto epoch_time = system_clock::now(); // HPZ: Counting
+		switch (operation.opcode)
+		{
+		case task_type::train_one_batch:
+		{
+			unsigned long start = *(unsigned long *)&operation.operand1, end = *(unsigned long *)&operation.operand2;
+			std::cout << start << "~" << end << std::endl;
+			std::cout << "diff:" << end - start << std::endl;
+			local_training = training.split(start, end);
+			trainer.epoch_pos = 0;
+			trainer.set_mini_batch_size(end - start);
+			std::cout << "mini_batch:" << trainer.get_mini_batch_size() << std::endl;
+			std::cout << "data_size:" << local_training.getData().size() << std::endl;
+			trainer.train_one_batch(local_training.getData(), local_training.getLabel());
+			syncer.pre_train(operation);
 
-		syncer.sn_sync();
-		// trainer.train_one_epoch (training.getData(), training.getLabel());
-		epoch++;
+			trainer.distributed_signal.get_mutex().lock();
+			if (trainer.ready_status != 3)
+				trainer.distributed_signal.wait();
 
-		// sleep((unsigned int) 0);
+			trainer.status_lock.unlock();
 
-		std::cout << "Finish batch " << batch++ << std::endl;
-		std::cout << "Time for batch is "
-				  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; // HPZ: Counting
-		time += std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count();
+			syncer.send_gradients_to_master();
 
-		// std::cout << "[After]" << std::endl;
-		// training.accuracy (net);
+			std::cout << "Learning rate is " << trainer.learning_rate << std::endl;
+			break;
+		}
+		default:
+		{
+			// HPZ: TODO
+			std::cout << "Error op" << std::endl;
+			epoch = 99999;
+		}
+		}
 
-		// if (trainer.learning_rate <= 0.00001) {
-		// 	std::cout << "---------------------------" << std::endl;
-		// 	std::cout << "|Exit because l_rate      |" << std::endl;
-		// 	std::cout << "---------------------------" << std::endl;
-		// 	break;
-		// }
-
-		if (epoch >= ending)
+		if (trainer.learning_rate <= 0.001)
 		{
 			std::cout << "---------------------------" << std::endl;
-			std::cout << "|Exit because 120 epochs   |" << std::endl;
+			std::cout << "|Exit because l_rate      |" << std::endl;
+			std::cout << "---------------------------" << std::endl;
+			break;
+		}
+
+		if (epoch >= 12)
+		{
+			std::cout << "---------------------------" << std::endl;
+			std::cout << "|Exit because 30 epochs   |" << std::endl;
 			std::cout << "---------------------------" << std::endl;
 			break;
 		}
@@ -228,29 +209,12 @@ int main(int argc, char **argv) try
 
 	std::cout << "All time: " << time << std::endl;
 
-	syncer.shut_slaves();
-
-#else
-	auto real_time = system_clock::now();
-	auto print_time = 0;
-	syncer.ending_time = 60;
-	std::cout << syncer.ending_time << std::endl;
-
-	syncer.sync((unsigned long)training.getData().size());
-	print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
-	std::cout << "All time: " << print_time << std::endl;
-
-#endif
-
 	std::cout << training_data_path << std::endl;
 	training.accuracy(net);
 	std::cout << std::endl;
-	// std::cout << testing_data_path << std::endl;
-	// testing.accuracy(net);
-	std::cout << std::endl;
 
 	std::cout << trainer << std::endl;
-	//sleep ((unsigned int) 3600);
+	sleep((unsigned int)3600);
 
 	net.clean();
 	serialize("permission_network.dat") << net;

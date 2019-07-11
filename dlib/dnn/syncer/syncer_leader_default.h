@@ -10,12 +10,12 @@ namespace dlib {
 /*
  *	Leader Manage functions, by PZH
  *
- *  set_isMaster(int)
+ *  set_role(int)
  */
 
 template <typename trainer_type>
-void dnn_syncer<trainer_type>::set_isMaster (int ism) {
-	this->ismaster = ism;
+void dnn_syncer<trainer_type>::set_role (int role) {
+	this->role = role;
 }
 
 template <typename trainer_type>
@@ -29,7 +29,7 @@ void dnn_syncer<trainer_type>::set_this_device (device me_) {
  */
 template<typename trainer_type>
 void dnn_syncer<trainer_type>::print_slaves_status() {
-	DLIB_CASSERT (ismaster == 1, "Slave deivce doesn't have the right to get slaves' status.");
+	DLIB_CASSERT (this->role == device_role::worker || this->role == device_role::undecided, "Worker/Undecided deivce doesn't have the right to get slaves' status.");
 
 	for (int i = 0; i < this->slaves_list.size(); i++ ) {
 		std::cout << "[" << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << "]\t";
@@ -40,7 +40,7 @@ void dnn_syncer<trainer_type>::print_slaves_status() {
 
 template<typename trainer_type>
 int dnn_syncer<trainer_type>::get_running_slaves_num() {
-	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to get running_slaves_num.");
+	DLIB_CASSERT (this->role == device_role::worker || this->role == device_role::undecided, "Worker/Undecided deivce doesn't have the right to get running_slaves_num.");
 	int ret = 0;
 
 	for (int i = 0; i < this->slaves_list.size(); i++) {
@@ -85,7 +85,7 @@ void dnn_syncer<trainer_type>::update (std::vector<tensor *> &updated) {
  ===================================================================================*/
 template <typename trainer_type>
 void dnn_leader<trainer_type>::add_slave (device slave) {
-	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to add slaves.");
+	DLIB_CASSERT (this->role == device_role::worker || this->role == device_role::undecided, "Worker/Undecided deivce doesn't have the right to add slaves.");
 
 	this->slaves_list.push_back (slave);
 	connection *c;
@@ -95,7 +95,7 @@ void dnn_leader<trainer_type>::add_slave (device slave) {
 
 template <typename trainer_type>
 void dnn_leader<trainer_type>::remove_slave (size_t index) {
-	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to remove slaves.");
+	DLIB_CASSERT (this->role == device_role::worker || this->role == device_role::undecided, "Worker/Undecided deivce doesn't have the right to remove slaves.");
 
 	if (index < 0 || index >= this->slaves_list.size()) {
 		std::cerr << "Removing an invalid index" << std::endl;
@@ -108,7 +108,7 @@ void dnn_leader<trainer_type>::remove_slave (size_t index) {
 
 template <typename trainer_type>
 void dnn_leader<trainer_type>::init_slaves() {
-	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to init slaves.");
+	DLIB_CASSERT (this->role == device_role::worker || this->role == device_role::undecided, "Worker/Undecided deivce doesn't have the right to init slaves.");
 
 	for (int i = 0; i < this->slaves_list.size(); i++ ) {
 		if (create_connection (this->slaves_conns[i], (unsigned short)this->slaves_list[i].port, this->slaves_list[i].ip, (unsigned short)this->me.port + i, this->me.ip)) {
@@ -143,7 +143,7 @@ void dnn_leader<trainer_type>::init_slaves() {
 
 template <typename trainer_type>
 void dnn_leader<trainer_type>::shut_slaves() {
-	DLIB_CASSERT (this->ismaster == 1, "Slave deivce doesn't have the right to init slaves.");
+	DLIB_CASSERT (this->role == device_role::worker || this->role == device_role::undecided, "Worker/Undecided deivce doesn't have the right to init slaves.");
 
 	for (int i = 0; i < this->slaves_list.size(); i++ ) {
 		this->slaves_conns[i].shutdown();

@@ -41,7 +41,7 @@ class dnn_syncer
 public:
 	trainer_type *trainer;
 
-	int ismaster = 0;
+	int role = device_role::undecided;
 	device me;
 	device master;
 	connection *master_conn = NULL;
@@ -55,19 +55,19 @@ public:
 	dnn_syncer(const dnn_syncer &) = default;
 	dnn_syncer &operator=(const dnn_syncer &) = default;
 
-	[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]] dnn_syncer(int ism) {
-		ismaster = ism;
+	[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]] dnn_syncer(int role) {
+		this->role = role;
 	}
 
-		[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]] dnn_syncer(trainer_type *trainer, int ism)
+		[[deprecated("Please use dnn_leader/dnn_async_leader or dnn_worker instead of dnn_syncer.")]] dnn_syncer(trainer_type *trainer, int role)
 	{
 		this->trainer = trainer;
-		this->ismaster = ism;
+		this->role = role;
 	}
 
 	~dnn_syncer() = default;
 
-	void set_isMaster(int);
+	void set_role(int);
 
 	void set_this_device(device);
 
@@ -81,7 +81,7 @@ public:
 
 	int wait_for_master_init()
 	{
-		DLIB_CASSERT(ismaster == 0, "Master deivce doesn't need to wait for being initialized.");
+		DLIB_CASSERT(role == device_role::supleader, "Master deivce doesn't need to wait for being initialized.");
 
 		listener *lt;
 
@@ -187,7 +187,7 @@ public:
 	dnn_syncer &operator<<(std::ostream &out)
 	{
 		out << trainer << std::endl;
-		out << ismaster << std::endl;
+		out << role << std::endl;
 	}
 };
 
@@ -200,15 +200,15 @@ public:
 	dnn_leader(const dnn_leader &) = default;
 	dnn_leader &operator=(const dnn_leader &) = default;
 
-	dnn_leader(int ism)
+	dnn_leader(int role)
 	{
-		this->ismaster = ism;
+		this->role = role;
 	}
 
-	dnn_leader(trainer_type *trainer, int ism)
+	dnn_leader(trainer_type *trainer, int role)
 	{
 		this->trainer = trainer;
-		this->ismaster = ism;
+		this->role = role;
 	}
 
 	~dnn_leader(){};
@@ -248,15 +248,15 @@ public:
 	dnn_async_leader(const dnn_async_leader &) = default;
 	dnn_async_leader &operator=(const dnn_async_leader &) = default;
 
-	dnn_async_leader(int ism)
+	dnn_async_leader(int role)
 	{
-		this->ismaster = ism;
+		this->role = role;
 	}
 
-	dnn_async_leader(trainer_type *trainer, int ism)
+	dnn_async_leader(trainer_type *trainer, int role)
 	{
 		this->trainer = trainer;
-		this->ismaster = ism;
+		this->role = role;
 	}
 
 	void init_receiver_pool();
