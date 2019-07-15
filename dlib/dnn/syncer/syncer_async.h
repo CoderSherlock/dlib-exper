@@ -219,19 +219,6 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 		auto i = this->tq.queue.begin();
 		if (i == this->tq.queue.end())
 		{
-			// int flag = 1;
-
-			// for (auto i : this->counter)
-			// {
-			// 	if (i < this->ending_time)
-			// 	{
-			// 		flag = 0;
-			// 		break;
-			// 	}
-			// }
-
-			// if (flag)
-			// 	break;
 
 			if (batch_pos >= batch_amount)
 			{

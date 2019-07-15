@@ -260,6 +260,8 @@ int main(int argc, char **argv) try
 
 		std::cout << "Finish initialization training, it takes " << 0 << " seconds" << std::endl;
 
+		sleep((unsigned int)5);
+
 		syncer.init_slaves();
 		syncer.init_receiver_pool();
 	}
@@ -298,6 +300,8 @@ int main(int argc, char **argv) try
 		};
 
 		std::cout << "Finish initialization training, it takes " << 0 << " seconds" << std::endl;
+
+		sleep((unsigned int)10);
 
 		syncer.init_slaves();
 		syncer.init_receiver_pool();
