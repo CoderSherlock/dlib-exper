@@ -39,6 +39,18 @@ public:
         return -1;
     };
 
+    int get_number(std::string ip, int port)
+    {
+        for (auto i = device_list.begin(); i != device_list.end(); ++i)
+        {
+            if (ip == i->ip && port == i->port)
+            {
+                return i->number;
+            }
+        }
+        return -1;
+    };
+    
     int read_config(char *config_path)
     {
         std::ifstream f;
@@ -60,12 +72,12 @@ public:
             this->testing_dataset_path.push_back(tmp);
         }
 
-        int number = 0, port, role;
+        int number = 0, port, role, master;
         std::string ip;
         while (device_lines--)
         {
-            f >> ip >> port >> role;
-            device temp(number++, ip, port, role);
+            f >> number >> ip >> port >> role >> master;
+            device temp(number, ip, port, role, master);
             device_list.push_back(temp);
         }
 

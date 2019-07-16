@@ -81,7 +81,7 @@ public:
 
 	int wait_for_master_init()
 	{
-		DLIB_CASSERT(role == device_role::supleader, "Master deivce doesn't need to wait for being initialized.");
+		DLIB_CASSERT(this->role != device_role::supleader, "Super leader deivce doesn't need to wait for being initialized.");
 
 		listener *lt;
 
@@ -182,6 +182,7 @@ public:
 	std::vector<device> slaves_list;
 	std::vector<connection *> slaves_conns;
 	std::vector<slaveStatus> slaves_status;
+	std::vector<int> slaves_capacities;
 
 	// TODO
 	dnn_syncer &operator<<(std::ostream &out)

@@ -82,7 +82,15 @@ int main(int argc, char **argv) try
 	distributed_trainer_config.read_config(config_path);
 
 	int role = distributed_trainer_config.get_role(me.ip, me.port);
+	me.number = distributed_trainer_config.get_number(me.ip, me.port);
 	std::cout << "I'm a " << (role == 0 ? "worker" : (role == 1 ? "leader" : (role == 2 ? "supleader" : "undecided"))) << std::endl;
+	for (auto i = distributed_trainer_config.device_list.begin(); i != distributed_trainer_config.device_list.end(); ++i)
+	{
+		if (i->master == me.number)
+		{
+			slave_list.push_back(*i);
+		}
+	}
 
 	// Get data
 	char *training_data_path = strdup(distributed_trainer_config.training_dataset_path.c_str());
@@ -136,6 +144,7 @@ int main(int argc, char **argv) try
 		dnn_worker<trainer_type> syncer(&trainer);
 
 		syncer.set_this_device(me);
+		syncer.set_role(role);
 
 		trainer.isDistributed = 1;
 
@@ -155,11 +164,16 @@ int main(int argc, char **argv) try
 		};
 
 		// TODO: Wait for master connect
+		std::cout << "Wait for leader to init" << std::endl;
 		if (!syncer.wait_for_master_init())
 		{
 			std::cerr << "Error happens when master send init message" << std::endl;
 			exit(0);
 		}
+
+		sleep((unsigned int)3600);
+
+		/*
 
 		dataset<matrix<int>, unsigned long> local_training;
 
@@ -222,11 +236,11 @@ int main(int argc, char **argv) try
 				std::cout << "---------------------------" << std::endl;
 				break;
 			}
-		}
+		} */
 	}
 	else if (role == device_role::leader)
 	{
-		dnn_async_leader<trainer_type> syncer(&trainer, 0);
+		dnn_leader<trainer_type> syncer(&trainer, 0);
 		syncer.set_this_device(me);
 		syncer.set_role(role);
 		syncer.exper = 1;
@@ -263,7 +277,16 @@ int main(int argc, char **argv) try
 		sleep((unsigned int)5);
 
 		syncer.init_slaves();
-		syncer.init_receiver_pool();
+
+		std::cout << "Finished Initialization, now start training procedures" << std::endl;
+		syncer.print_slaves_status();
+		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
+
+		syncer.wait_for_master_init();
+
+		std::cout << "Connected by master" << std::endl;
+
+		sleep((unsigned int)3600);
 	}
 	else if (role == device_role::supleader)
 	{
@@ -310,14 +333,16 @@ int main(int argc, char **argv) try
 		syncer.print_slaves_status();
 		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
 
-		auto real_time = system_clock::now();
-		auto print_time = 0;
-		syncer.ending_time = 60;
-		std::cout << syncer.ending_time << std::endl;
+		sleep((unsigned int)3600);
 
-		syncer.sync((unsigned long)training.getData().size());
-		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
-		std::cout << "All time: " << print_time << std::endl;
+		// auto real_time = system_clock::now();
+		// auto print_time = 0;
+		// syncer.ending_time = 60;
+		// std::cout << syncer.ending_time << std::endl;
+
+		// syncer.sync((unsigned long)training.getData().size());
+		// print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
+		// std::cout << "All time: " << print_time << std::endl;
 	}
 	else
 	{
