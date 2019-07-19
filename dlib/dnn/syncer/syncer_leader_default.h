@@ -125,7 +125,7 @@ void dnn_leader<trainer_type>::init_slaves()
 
 	for (int i = 0; i < this->slaves_list.size(); i++)
 	{
-		if (create_connection(this->slaves_conns[i], (unsigned short)this->slaves_list[i].port, this->slaves_list[i].ip, (unsigned short)this->me.port + i, this->me.ip))
+		if (create_connection(this->slaves_conns[i], (unsigned short)this->slaves_list[i].port, this->slaves_list[i].ip, (unsigned short)0, this->me.ip))
 		{
 			std::cerr << "Create failed on " << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << std::endl;
 			this->slaves_status[i] = slaveStatus::NotConn;
