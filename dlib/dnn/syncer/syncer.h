@@ -130,7 +130,7 @@ public:
 		// dest += sizeof(task.operand1);
 		// std::memcpy(dest, (char *)&task.operand2, sizeof(task.operand2));
 
-		this->slaves_conns[slave_index]->write((char*)&task.opcode, 24);
+		this->slaves_conns[slave_index]->write((char *)&task.opcode, 24);
 
 		return 1;
 	}
@@ -178,6 +178,45 @@ public:
 	}
 
 	void update(std::vector<tensor *> &updated);
+
+	task_op wait_for_task()
+	{
+		char *task_message = new char[24];
+		this->master_conn->read(task_message, 24);
+
+		task_op ret;
+		ret.opcode = *((int *)task_message);
+		ret.reserved = *((int *)(task_message + 4));
+		ret.operand1 = *((double *)(task_message + 8));
+		ret.operand2 = *((double *)(task_message + 16));
+
+		delete[] task_message;
+
+		return ret;
+	}
+
+	void receive_latest_parameters(std::vector<resizable_tensor> &updated)
+	{
+		// Initialize
+		std::vector<tensor *> tensors;
+		tensors.resize(this->trainer->num_computational_layers);
+		visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+			tensors[i] = &t;
+		});
+
+		updated.resize(this->trainer->num_computational_layers);
+
+		for (size_t i = 0; i < updated.size(); i++)
+		{
+			updated[i].copy_size(*tensors[i]);
+		}
+
+		for (size_t i = 0; i < updated.size(); i++)
+		{
+			if (updated[i].size() != 0)
+				network::receive_compressed_tensor(this->master_conn, &updated[i]);
+		}
+	};
 
 	std::vector<device> slaves_list;
 	std::vector<connection *> slaves_conns;
@@ -238,6 +277,10 @@ public:
 	void update_gradients(std::vector<tensor *> &gradients);
 
 	void sn_sync();
+
+	void sync();
+
+	void subdispatch(unsigned long start, unsigned long end);
 };
 
 template <typename trainer_type>
@@ -300,11 +343,7 @@ public:
 		this->trainer = trainer;
 	}
 
-	task_op wait_for_task();
-
 	void send_gradients_to_master();
-
-	void receive_latest_parameters(std::vector<resizable_tensor> &updated);
 
 	void pre_train(task_op operation);
 };

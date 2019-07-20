@@ -50,7 +50,7 @@ public:
         }
         return -1;
     };
-    
+
     int read_config(char *config_path)
     {
         std::ifstream f;
@@ -77,7 +77,7 @@ public:
         while (device_lines--)
         {
             f >> number >> ip >> port >> role >> master;
-            device temp(number, ip, port, role, master);
+            device temp(number, ip, port, role, master, 0);
             device_list.push_back(temp);
         }
 

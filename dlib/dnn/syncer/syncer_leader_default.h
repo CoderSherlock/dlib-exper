@@ -38,6 +38,7 @@ void dnn_syncer<trainer_type>::print_slaves_status()
 	for (int i = 0; i < this->slaves_list.size(); i++)
 	{
 		std::cout << "[" << this->slaves_list[i].ip << ":" << this->slaves_list[i].port << "]\t";
+		std::cout << this->slaves_list[i].master << " " << this->slaves_list[i].comp_ability << "\t";
 		std::cout << this->slaves_conns[i] << "\t" << this->slaves_status[i] << std::endl;
 	}
 }
@@ -588,7 +589,62 @@ void dnn_leader<trainer_type>::sn_sync()
 	else
 	{
 	}
-}
+};
+
+template <typename trainer_type>
+void dnn_leader<trainer_type>::sync()
+{
+	std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
+	std::vector<std::vector<resizable_tensor>> all_tensors;
+
+	this->send_parameters_to_slaves_serialised();
+	this->receive_gradients_parallism(all_tensors);
+
+	this->average(all_tensors);
+
+	std::vector<tensor *> temp(this->trainer->num_computational_layers);
+
+	for (size_t i = 0; i < temp.size(); i++)
+	{
+		// TODO : Deal with 0
+		temp[i] = &all_tensors[0][i];
+	}
+
+	for (size_t i = 0; i < temp.size(); i++)
+	{
+		std::cout << i << " " << temp[i]->size() << std::endl;
+
+		if (temp[i]->size() != 0)
+		{
+			network::send_compressed_tensor(this->master_conn, temp[i]);
+		}
+	}
+};
+
+template <typename trainer_type>
+void dnn_leader<trainer_type>::subdispatch(unsigned long all_start, unsigned long all_end)
+{
+	unsigned long diff = all_end - all_start;
+	unsigned long share = std::ceil(diff / this->me.comp_ability);
+	unsigned long current_start = all_start;
+
+	for (int i = 0; i < this->slaves_status.size(); i++)
+	{
+		if (this->slaves_status[i] == slaveStatus::Running)
+		{
+			task_op worker_job;
+			unsigned long start = current_start, end = (current_start + share * this->slaves_list[i].comp_ability >= all_end - 1 ? all_end : current_start + share * this->slaves_list[i].comp_ability);
+			worker_job.opcode = 1;
+			std::memcpy(&worker_job.operand1, &start, sizeof(worker_job.operand1));
+			std::memcpy(&worker_job.operand2, &end, sizeof(worker_job.operand2));
+
+			std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
+			this->dispatch_jobs(i, worker_job);
+
+			current_start = ((current_start + share * this->slaves_list[i].comp_ability >= all_end - 1 ? 0 : current_start + share * this->slaves_list[i].comp_ability));
+		}
+	}
+};
 
 } // End of Namespace dlib
 

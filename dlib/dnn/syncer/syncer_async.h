@@ -166,10 +166,12 @@ void dnn_async_leader<trainer_type>::send_parameters(int slave_index, std::vecto
 	}
 }
 
+#define BATCH_SIZE 128
+
 template <typename trainer_type>
 void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 {
-	int epoch = 1, batch_amount = std::ceil((float)training_size / 128) * this->ending_time, batch_pos = 1;
+	int epoch = 1, batch_amount = 0, batch_pos = 0;
 	unsigned long current_start = 0;
 
 	while (1)
@@ -177,7 +179,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 		// Check idle workers & dispatch jobs
 		for (int i = 0; i < this->slaves_status.size(); i++)
 		{
-			if (epoch >= batch_amount)
+			if (epoch > this->ending_time)
 			{
 				// std::cout << "Break!" << std::endl;
 				break;
@@ -186,7 +188,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 			if (this->slaves_status[i] == slaveStatus::Running && this->idle_worker[i] == true)
 			{
 				task_op worker_job;
-				unsigned long start = current_start, end = (current_start + 128 >= training_size - 1 ? training_size - 1 : current_start + 128);
+				unsigned long start = current_start, end = (current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? training_size - 1 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability);
 				worker_job.opcode = 1;
 				std::memcpy(&worker_job.operand1, &start, sizeof(worker_job.operand1));
 				std::memcpy(&worker_job.operand2, &end, sizeof(worker_job.operand2));
@@ -198,6 +200,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 				this->job_signal_mutex[i]->unlock();
 				this->job_signal[i]->signal();
 				this->idle_worker[i] = false;
+				batch_amount += 1;
 
 				// if (current_start + 128 >= training_size - 1)
 				// {
@@ -206,9 +209,11 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 				// 	std::cout << "|" << epoch << "|" << std::endl;
 				// 	std::cout << "-----" << std::endl;
 				// }
-				epoch += 1;
 
-				current_start = ((current_start + 128 >= training_size - 1 ? 0 : current_start + 128));
+				current_start = ((current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? 0 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability));
+				if (current_start == 0) {
+					epoch += 1;
+				}
 			}
 		}
 

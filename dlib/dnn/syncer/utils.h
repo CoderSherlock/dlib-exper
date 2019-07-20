@@ -29,6 +29,7 @@ struct device
 	int port = 2333;
 	int role = device_role::undecided;
 	int master = -1;
+	int comp_ability = 1;
 
 	device() {}
 
@@ -36,8 +37,8 @@ struct device
 		: number(number_), ip(ip_), port(port_)
 	{
 	}
-	device(int number_, std::string ip_, int port_, int role_, int master_)
-		: number(number_), ip(ip_), port(port_), role(role_), master(master_)
+	device(int number_, std::string ip_, int port_, int role_, int master_, int comp_)
+		: number(number_), ip(ip_), port(port_), role(role_), master(master_), comp_ability(comp_)
 	{
 	}
 }; // End of Structure device

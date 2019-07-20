@@ -40,6 +40,21 @@ int load_permission_data(char *dataset, std::vector<matrix<int>> &data, std::vec
 	return 1;
 }
 
+int get_comp_ability(int number, std::list<device> device_list)
+{
+	int ret = 0;
+	for (auto t = device_list.begin(); t != device_list.end(); ++t)
+	{
+		if (t->master == number)
+		{
+			ret += get_comp_ability(t->number, device_list);
+		}
+	}
+	if (ret == 0)
+		return 1;
+	return ret;
+}
+
 int main(int argc, char **argv) try
 {
 
@@ -88,8 +103,15 @@ int main(int argc, char **argv) try
 	{
 		if (i->master == me.number)
 		{
+			i->comp_ability = get_comp_ability(i->number, distributed_trainer_config.device_list);
 			slave_list.push_back(*i);
 		}
+	}
+
+	me.comp_ability = 0;
+	for (auto i = slave_list.begin(); i != slave_list.end(); ++i)
+	{
+		me.comp_ability += i->comp_ability;
 	}
 
 	// Get data
@@ -171,9 +193,7 @@ int main(int argc, char **argv) try
 			exit(0);
 		}
 
-		sleep((unsigned int)3600);
-
-		/*
+		// sleep((unsigned int)3600);
 
 		dataset<matrix<int>, unsigned long> local_training;
 
@@ -236,7 +256,7 @@ int main(int argc, char **argv) try
 				std::cout << "---------------------------" << std::endl;
 				break;
 			}
-		} */
+		}
 	}
 	else if (role == device_role::leader)
 	{
@@ -286,7 +306,66 @@ int main(int argc, char **argv) try
 
 		std::cout << "Connected by master" << std::endl;
 
-		sleep((unsigned int)3600);
+		// sleep((unsigned int)3600);
+
+		int epoch = 0, batch = 0;
+
+		while (true)
+		{
+			task_op operation = syncer.wait_for_task();
+
+			switch (operation.opcode)
+			{
+			case task_type::train_one_batch:
+			{
+				unsigned long start = *(unsigned long *)&operation.operand1, end = *(unsigned long *)&operation.operand2;
+				std::cout << start << "~" << end << std::endl;
+				std::cout << "diff:" << end - start << std::endl;
+
+				// HPZ: Sync lateset parameters
+				std::vector<resizable_tensor> latest_parameters;
+				syncer.receive_latest_parameters(latest_parameters);
+
+				std::vector<tensor *> temp(syncer.trainer->num_computational_layers);
+				for (size_t i = 0; i < temp.size(); i++)
+				{
+					// TODO : Deal with 0
+					temp[i] = &latest_parameters[i];
+				}
+				syncer.update(temp);
+
+				// TODO: Dispatch jobs
+				syncer.subdispatch(start, end);
+
+				syncer.sync();
+
+				std::cout << "Learning rate is " << trainer.learning_rate << std::endl;
+				break;
+			}
+			default:
+			{
+				// HPZ: TODO
+				std::cout << "Error op" << std::endl;
+				epoch = 99999;
+			}
+			}
+
+			if (trainer.learning_rate <= 0.001)
+			{
+				std::cout << "---------------------------" << std::endl;
+				std::cout << "|Exit because l_rate      |" << std::endl;
+				std::cout << "---------------------------" << std::endl;
+				break;
+			}
+
+			if (epoch >= 12)
+			{
+				std::cout << "---------------------------" << std::endl;
+				std::cout << "|Exit because 30 epochs   |" << std::endl;
+				std::cout << "---------------------------" << std::endl;
+				break;
+			}
+		}
 	}
 	else if (role == device_role::supleader)
 	{
@@ -333,16 +412,16 @@ int main(int argc, char **argv) try
 		syncer.print_slaves_status();
 		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
 
-		sleep((unsigned int)3600);
+		// sleep((unsigned int)3600);
 
-		// auto real_time = system_clock::now();
-		// auto print_time = 0;
-		// syncer.ending_time = 60;
-		// std::cout << syncer.ending_time << std::endl;
+		auto real_time = system_clock::now();
+		auto print_time = 0;
+		syncer.ending_time = 10;
+		std::cout << syncer.ending_time << std::endl;
 
-		// syncer.sync((unsigned long)training.getData().size());
-		// print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
-		// std::cout << "All time: " << print_time << std::endl;
+		syncer.sync((unsigned long)training.getData().size());
+		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
+		std::cout << "All time: " << print_time << std::endl;
 	}
 	else
 	{
