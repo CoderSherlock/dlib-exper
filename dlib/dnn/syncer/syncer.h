@@ -177,6 +177,37 @@ public:
 		}
 	}
 
+	void average_ptr(std::vector<std::vector<tensor *>> &all_tensors)
+	{
+		if (all_tensors.size() < 1)
+		{
+			return;
+		}
+		std::vector<std::vector<tensor *>> accessible_groups;
+		float scale = 1.0 / all_tensors.size();
+
+		for (size_t i = 0; i < all_tensors[0].size(); i++)
+		{
+			std::vector<tensor *> group;
+
+			for (size_t j = 0; j < all_tensors.size(); j++)
+			{
+				group.push_back(all_tensors[j][i]);
+			}
+
+			if (group.size() == 0)
+				continue;
+
+			if (group.size() == 1)
+				tt::affine_transform(*group[0], *group[0], scale);
+			else
+				tt::affine_transform(*group[0], *group[0], *group[1], scale, scale);
+
+			for (size_t i = 2; i < group.size(); ++i)
+				tt::affine_transform(*group[0], *group[0], *group[i], 1, scale);
+		}
+	}
+
 	void update(std::vector<tensor *> &updated);
 
 	task_op wait_for_task()
@@ -309,6 +340,8 @@ public:
 
 	void send_parameters(int slave_index, std::vector<resizable_tensor> &parameters);
 
+	void subsync(unsigned long);
+
 	void sync(unsigned long);
 
 	int ending_time;
@@ -344,6 +377,7 @@ public:
 	}
 
 	void send_gradients_to_master();
+	void send_parameters_to_master();
 
 	void pre_train(task_op operation);
 };

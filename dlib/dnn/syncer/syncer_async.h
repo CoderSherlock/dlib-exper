@@ -167,6 +167,116 @@ void dnn_async_leader<trainer_type>::send_parameters(int slave_index, std::vecto
 }
 
 #define BATCH_SIZE 128
+template <typename trainer_type>
+void dnn_async_leader<trainer_type>::subsync(unsigned long training_size)
+{
+	int epoch = 1, batch_amount = 0, batch_pos = 0;
+	unsigned long current_start = 0;
+
+	while (1)
+	{
+		// Check idle workers & dispatch jobs
+		for (int i = 0; i < this->slaves_status.size(); i++)
+		{
+			if (epoch > this->ending_time)
+			{
+				// std::cout << "Break!" << std::endl;
+				break;
+			}
+
+			if (this->slaves_status[i] == slaveStatus::Running && this->idle_worker[i] == true)
+			{
+				task_op worker_job;
+				unsigned long start = current_start, end = (current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? training_size - 1 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability);
+				worker_job.opcode = 1;
+				std::memcpy(&worker_job.operand1, &start, sizeof(worker_job.operand1));
+				std::memcpy(&worker_job.operand2, &end, sizeof(worker_job.operand2));
+
+				std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
+				this->dispatch_jobs(i, worker_job);
+				this->job_signal_mutex[i]->lock();
+				this->signal_status[i] = true;
+				this->job_signal_mutex[i]->unlock();
+				this->job_signal[i]->signal();
+				this->idle_worker[i] = false;
+				batch_amount += 1;
+
+				// if (current_start + 128 >= training_size - 1)
+				// {
+				// 	epoch += 1;
+				// 	std::cout << "-----" << std::endl;
+				// 	std::cout << "|" << epoch << "|" << std::endl;
+				// 	std::cout << "-----" << std::endl;
+				// }
+
+				current_start = ((current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? 0 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability));
+				if (current_start == 0)
+				{
+					epoch += 1;
+				}
+			}
+		}
+
+		// Checking updated gradients.
+		while (this->tq.queue_lock.trylock() == 0)
+		{
+		};
+		auto i = this->tq.queue.begin();
+		if (i == this->tq.queue.end())
+		{
+
+			if (batch_pos >= batch_amount)
+			{
+				std::cout << "Finished training task" << std::endl;
+				break;
+			}
+
+			continue;
+		}
+
+		if ((*i).ready == 1)
+		{
+
+			// Let's rock it!
+			(*i).ready = 0;
+			this->tq.queue_lock.unlock();
+
+			// Update to trainer
+			std::vector<tensor *> temp(this->trainer->num_computational_layers);
+
+			for (size_t j = 0; j < temp.size(); j++)
+			{
+				temp[j] = &((*i).tensors[j]);
+			}
+
+			this->update_gradients(temp);
+
+			this->trainer->read_lock.lock();
+			this->trainer->update_parameters();
+			this->trainer->read_lock.unlock();
+			//sleep(10000);
+
+			while (this->tq.queue_lock.trylock() == 0)
+			{
+			};
+
+			this->tq.queue.erase(i);
+			batch_pos += 1;
+
+			this->tq.queue_lock.unlock();
+		}
+	}
+
+	for (size_t i = 0; i < this->receivers.size(); i++)
+	{
+		this->slaves_status[i] = slaveStatus::NotConn;
+	}
+	for (size_t i = 0; i < this->receivers.size(); i++)
+	{
+		this->job_signal[i]->signal();
+		this->receivers[i]->join();
+	}
+};
 
 template <typename trainer_type>
 void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
@@ -211,7 +321,8 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 				// }
 
 				current_start = ((current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? 0 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability));
-				if (current_start == 0) {
+				if (current_start == 0)
+				{
 					epoch += 1;
 				}
 			}
@@ -242,6 +353,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 			this->tq.queue_lock.unlock();
 
 			// Update to trainer
+			std::vector<std::vector<tensor *>> paras;
 			std::vector<tensor *> temp(this->trainer->num_computational_layers);
 
 			for (size_t j = 0; j < temp.size(); j++)
@@ -249,10 +361,20 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 				temp[j] = &((*i).tensors[j]);
 			}
 
-			this->update_gradients(temp);
+			std::vector<tensor *> old_tensors;
+			old_tensors.resize(this->trainer->num_computational_layers);
+
+			visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+				old_tensors[i] = &t;
+			});
+
+			paras.push_back(old_tensors);
+			paras.push_back(temp);
 
 			this->trainer->read_lock.lock();
-			this->trainer->update_parameters();
+
+			this->average_ptr(paras);
+
 			this->trainer->read_lock.unlock();
 			//sleep(10000);
 

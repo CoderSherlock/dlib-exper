@@ -228,7 +228,7 @@ int main(int argc, char **argv) try
 
 				trainer.status_lock.unlock();
 
-				syncer.send_gradients_to_master();
+				syncer.send_parameters_to_master();
 
 				std::cout << "Learning rate is " << trainer.learning_rate << std::endl;
 				break;

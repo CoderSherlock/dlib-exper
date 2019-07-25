@@ -77,6 +77,37 @@ void dnn_worker<trainer_type>::send_gradients_to_master()
 	}
 }
 
+template <typename trainer_type>
+void dnn_worker<trainer_type>::send_parameters_to_master()
+{
+
+	std::vector<tensor *> tensors;
+	tensors.resize(this->trainer->num_computational_layers);
+
+	visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+		tensors[i] = &t;
+	});
+
+	if (this->num_debug)
+	{
+		for (size_t i = 0; i < tensors.size(); i++)
+		{
+			if (tensors[i]->size() != 0)
+				print_tensor(tensors[i], 10);
+		}
+	}
+
+	for (size_t i = 0; i < tensors.size(); i++)
+	{
+		std::cout << i << " " << tensors[i]->size() << std::endl;
+
+		if (tensors[i]->size() != 0)
+		{
+			network::send_compressed_tensor(this->master_conn, tensors[i]);
+		}
+	}
+}
+
 } // End of Namespace dlib
 
 #endif
