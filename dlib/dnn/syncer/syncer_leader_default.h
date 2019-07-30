@@ -597,7 +597,7 @@ void dnn_leader<trainer_type>::sync()
 	std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
 	std::vector<std::vector<resizable_tensor>> all_tensors;
 
-	this->send_parameters_to_slaves_serialised();
+	this->send_parameters_to_slaves_paralized();
 	this->receive_gradients_parallism(all_tensors);
 
 	this->average(all_tensors);
