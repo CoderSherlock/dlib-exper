@@ -13,6 +13,8 @@ void dnn_worker<trainer_type>::pre_train(task_op operation)
 	{
 	case task_type::train_one_batch:
 	{
+		auto breakdown = system_clock::now(); // *_*
+
 
 		// HPZ: Sync lateset parameters
 		std::vector<resizable_tensor> latest_parameters;
@@ -30,6 +32,9 @@ void dnn_worker<trainer_type>::pre_train(task_op operation)
 			}
 		}
 		this->update(temp);
+
+		std::cout << "(recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+
 
 		this->trainer->distributed_signal.get_mutex().lock();
 		this->trainer->ready_status = 2;

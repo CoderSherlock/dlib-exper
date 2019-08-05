@@ -203,6 +203,9 @@ int main(int argc, char **argv) try
 
 		while (true)
 		{
+			auto batch_time = system_clock::now(); // *_*
+			auto breakdown = system_clock::now(); // *_*
+
 			mark += 1;
 
 			task_op operation = syncer.wait_for_task();
@@ -211,6 +214,7 @@ int main(int argc, char **argv) try
 			{
 			case task_type::train_one_batch:
 			{
+
 				unsigned long start = *(unsigned long *)&operation.operand1, end = *(unsigned long *)&operation.operand2;
 				std::cout << start << "~" << end << std::endl;
 				std::cout << "diff:" << end - start << std::endl;
@@ -219,6 +223,10 @@ int main(int argc, char **argv) try
 				trainer.set_mini_batch_size(end - start);
 				std::cout << "mini_batch:" << trainer.get_mini_batch_size() << std::endl;
 				std::cout << "data_size:" << local_training.getData().size() << std::endl;
+
+				std::cout << "(prepare " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+				breakdown = system_clock::now();
+
 				trainer.train_one_batch(local_training.getData(), local_training.getLabel());
 				syncer.pre_train(operation);
 
@@ -228,7 +236,12 @@ int main(int argc, char **argv) try
 
 				trainer.status_lock.unlock();
 
+				std::cout << "(train+recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+				breakdown = system_clock::now();
+
 				syncer.send_parameters_to_master();
+
+				std::cout << "(send " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
 
 				std::cout << "Learning rate is " << trainer.learning_rate << std::endl;
 				break;
@@ -240,6 +253,8 @@ int main(int argc, char **argv) try
 				epoch = 99999;
 			}
 			}
+
+			std::cout << "Time for batch is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - batch_time).count() << std::endl; // *_*
 
 			if (trainer.learning_rate <= 0.001)
 			{
