@@ -157,9 +157,9 @@ int main(int argc, char **argv) try
 	// HPZ: Setup synchronized protocol and test for the connection availability.
 	using trainer_type = dnn_trainer<net_type>;
 
-	char sync_filename[30];
-	sprintf(sync_filename, "backup.%s.mm", "pe_test");
-	trainer.set_synchronization_file(sync_filename, std::chrono::seconds(60));
+	// char sync_filename[30];
+	// sprintf(sync_filename, "backup.%s.mm", "pe_test");
+	// trainer.set_synchronization_file(sync_filename, std::chrono::seconds(60));
 
 	if (role == device_role::worker)
 	{
