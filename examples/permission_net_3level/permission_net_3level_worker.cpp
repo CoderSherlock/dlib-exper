@@ -203,12 +203,14 @@ int main(int argc, char **argv) try
 
 		while (true)
 		{
-			auto batch_time = system_clock::now(); // *_*
-			auto breakdown = system_clock::now(); // *_*
+			
 
 			mark += 1;
 
 			task_op operation = syncer.wait_for_task();
+
+			auto batch_time = system_clock::now(); // *_*
+			auto breakdown = system_clock::now(); // *_*
 
 			switch (operation.opcode)
 			{
@@ -264,7 +266,7 @@ int main(int argc, char **argv) try
 				break;
 			}
 
-			if (epoch >= 12)
+			if (epoch >= 5000)
 			{
 				std::cout << "---------------------------" << std::endl;
 				std::cout << "|Exit because 30 epochs   |" << std::endl;
@@ -373,7 +375,7 @@ int main(int argc, char **argv) try
 				break;
 			}
 
-			if (epoch >= 12)
+			if (epoch >= 5000)
 			{
 				std::cout << "---------------------------" << std::endl;
 				std::cout << "|Exit because 30 epochs   |" << std::endl;
@@ -431,7 +433,7 @@ int main(int argc, char **argv) try
 
 		auto real_time = system_clock::now();
 		auto print_time = 0;
-		syncer.ending_time = 10;
+		syncer.ending_time = 5;
 		std::cout << syncer.ending_time << std::endl;
 
 		syncer.sync((unsigned long)training.getData().size());
