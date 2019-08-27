@@ -193,6 +193,8 @@ void dnn_leader<trainer_type>::send_parameters(connection *slave)
 			network::send_compressed_tensor(slave, tensors[i]);
 		}
 	}
+
+	this->current_send -= 1;
 }
 
 /******************************************************
@@ -228,6 +230,9 @@ void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized()
 	for (size_t i = 0; i < receivers.size(); i++)
 	{
 		if (this->slaves_status[i] == slaveStatus::Running)
+			while(this->current_send >= this->max_concurrent_send) {}
+			this->current_send += 1;
+			std::cout << "Send to worker " << i << std::endl; 
 			receivers[i] = new std::thread(&dnn_leader::send_parameters, this, this->slaves_conns[i]);
 	}
 
@@ -299,7 +304,7 @@ void dnn_leader<trainer_type>::receive_gradients_serialism(std::vector<std::vect
 		{
 			if (this->slaves_status[s_c] == slaveStatus::Running)
 			{
-				std::cout << "Reciveing from " << s_c << std::endl;
+				// std::cout << "Reciveing from " << s_c << std::endl;
 				receive_gradients_from_one(s_c, all_tensors);
 			}
 		}

@@ -108,11 +108,16 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 		}
 		this->trainer->read_lock.unlock();
 
+		while (this->current_send >= this->max_concurrent_send)
+		{
+		}
+		this->current_send += 1;
+		std::cout << slave_index << std::endl;
 		this->send_parameters(slave_index, this->latest_paras[slave_index]);
 
 		this->receive_gradients_from_one(slave_index, gradients);
 
-		std::cout << "Received from slave " << slave_index << std::endl;
+		// std::cout << "Received from slave " << slave_index << std::endl;
 
 		task t(slave_index, 1, gradients);
 		this->tq.add_task(t);
@@ -164,6 +169,8 @@ void dnn_async_leader<trainer_type>::send_parameters(int slave_index, std::vecto
 			network::send_compressed_tensor(this->slaves_conns[slave_index], &tensors[i]);
 		}
 	}
+
+	this->current_send -= 1;
 }
 
 #define BATCH_SIZE 128
@@ -192,7 +199,7 @@ void dnn_async_leader<trainer_type>::subsync(unsigned long training_size)
 				std::memcpy(&worker_job.operand1, &start, sizeof(worker_job.operand1));
 				std::memcpy(&worker_job.operand2, &end, sizeof(worker_job.operand2));
 
-				std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
+				// std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
 				this->dispatch_jobs(i, worker_job);
 				this->job_signal_mutex[i]->lock();
 				this->signal_status[i] = true;
@@ -303,7 +310,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 				std::memcpy(&worker_job.operand1, &start, sizeof(worker_job.operand1));
 				std::memcpy(&worker_job.operand2, &end, sizeof(worker_job.operand2));
 
-				std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
+				// std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
 				this->dispatch_jobs(i, worker_job);
 				this->job_signal_mutex[i]->lock();
 				this->signal_status[i] = true;

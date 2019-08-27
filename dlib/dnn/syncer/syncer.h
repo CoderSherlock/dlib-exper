@@ -312,6 +312,12 @@ public:
 	void sync();
 
 	void subdispatch(unsigned long start, unsigned long end);
+
+protected:
+	volatile std::atomic<int> max_concurrent_send {1};
+	volatile std::atomic<int> current_send {0};
+	volatile std::atomic<int> max_concurrent_recv {1};
+	volatile std::atomic<int> current_recv {0};
 };
 
 template <typename trainer_type>
