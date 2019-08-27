@@ -203,14 +203,13 @@ int main(int argc, char **argv) try
 
 		while (true)
 		{
-			
 
 			mark += 1;
 
 			task_op operation = syncer.wait_for_task();
 
 			auto batch_time = system_clock::now(); // *_*
-			auto breakdown = system_clock::now(); // *_*
+			auto breakdown = system_clock::now();  // *_*
 
 			switch (operation.opcode)
 			{
@@ -239,8 +238,10 @@ int main(int argc, char **argv) try
 				trainer.status_lock.unlock();
 
 				std::cout << "(train+recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
-				breakdown = system_clock::now();
 
+				syncer.notify_train_finish();
+				syncer.wait_to_send();
+				breakdown = system_clock::now();
 				syncer.send_parameters_to_master();
 
 				std::cout << "(send " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*

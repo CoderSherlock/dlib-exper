@@ -249,6 +249,30 @@ public:
 		}
 	};
 
+	void notify_train_finish()
+	{
+		char *msg = new char[1];
+		this->master_conn->write(msg, 1);
+	};
+
+	void notify_send_begin(connection *conn)
+	{
+		char *msg = new char[1];
+		conn->write(msg, 1);
+	};
+
+	void wait_finishing(connection *conn)
+	{
+		char *msg = new char[1];
+		conn->read(msg, 1);
+	};
+
+	void wait_to_send()
+	{
+		char *msg = new char[1];
+		this->master_conn->read(msg, 1);
+	};
+
 	std::vector<device> slaves_list;
 	std::vector<connection *> slaves_conns;
 	std::vector<slaveStatus> slaves_status;
@@ -314,10 +338,10 @@ public:
 	void subdispatch(unsigned long start, unsigned long end);
 
 protected:
-	volatile std::atomic<int> max_concurrent_send {1};
-	volatile std::atomic<int> current_send {0};
-	volatile std::atomic<int> max_concurrent_recv {1};
-	volatile std::atomic<int> current_recv {0};
+	std::atomic<int> max_concurrent_send{4};
+	std::atomic<int> current_send{0};
+	std::atomic<int> max_concurrent_recv{4};
+	std::atomic<int> current_recv{0};
 };
 
 template <typename trainer_type>

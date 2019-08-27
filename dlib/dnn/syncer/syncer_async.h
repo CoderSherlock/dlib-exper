@@ -2,6 +2,9 @@
 #define DLIB_DNn_SYNCER_ASYNC_H_
 
 #include "syncer.h"
+#include <chrono>
+
+using std::chrono::system_clock;
 
 namespace dlib
 {
@@ -108,14 +111,33 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 		}
 		this->trainer->read_lock.unlock();
 
-		while (this->current_send >= this->max_concurrent_send)
+		while (std::atomic_fetch_add(&this->current_send, 1) >= this->max_concurrent_send)
 		{
+			std::atomic_fetch_sub(&this->current_send, 1);
 		}
-		this->current_send += 1;
-		std::cout << slave_index << std::endl;
+		// std::cout << slave_index << std::endl;
+
+		auto breakdown = system_clock::now();
+
 		this->send_parameters(slave_index, this->latest_paras[slave_index]);
+		std::atomic_fetch_sub(&this->current_send, 1);
+
+		std::cout << "(send " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+
+		this->wait_finishing(this->slaves_conns[slave_index]);
+
+		while (std::atomic_fetch_add(&this->current_recv, 1) >= this->max_concurrent_recv)
+		{
+			std::atomic_fetch_sub(&this->current_recv, 1);
+		}
+		this->notify_send_begin(this->slaves_conns[slave_index]);
+
+		breakdown = system_clock::now();
 
 		this->receive_gradients_from_one(slave_index, gradients);
+		std::atomic_fetch_sub(&this->current_recv, 1);
+
+		std::cout << "(recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
 
 		// std::cout << "Received from slave " << slave_index << std::endl;
 
@@ -169,8 +191,6 @@ void dnn_async_leader<trainer_type>::send_parameters(int slave_index, std::vecto
 			network::send_compressed_tensor(this->slaves_conns[slave_index], &tensors[i]);
 		}
 	}
-
-	this->current_send -= 1;
 }
 
 #define BATCH_SIZE 128
