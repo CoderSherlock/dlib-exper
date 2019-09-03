@@ -338,10 +338,8 @@ public:
 	void subdispatch(unsigned long start, unsigned long end);
 
 protected:
-	std::atomic<int> max_concurrent_send{4};
-	std::atomic<int> current_send{0};
-	std::atomic<int> max_concurrent_recv{4};
-	std::atomic<int> current_recv{0};
+	queue_lock *send_lock = new queue_lock(1);
+	queue_lock *recv_lock = new queue_lock(1);
 };
 
 template <typename trainer_type>

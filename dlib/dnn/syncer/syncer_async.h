@@ -111,31 +111,27 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 		}
 		this->trainer->read_lock.unlock();
 
-		while (std::atomic_fetch_add(&this->current_send, 1) >= this->max_concurrent_send)
-		{
-			std::atomic_fetch_sub(&this->current_send, 1);
-		}
-		// std::cout << slave_index << std::endl;
+		this->send_lock->join_and_wait_till_my_turn(slave_index); // HPZ: New added send lock
 
 		auto breakdown = system_clock::now();
 
 		this->send_parameters(slave_index, this->latest_paras[slave_index]);
-		std::atomic_fetch_sub(&this->current_send, 1);
+
+		this->send_lock->release();
 
 		std::cout << "(send " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
 
 		this->wait_finishing(this->slaves_conns[slave_index]);
 
-		while (std::atomic_fetch_add(&this->current_recv, 1) >= this->max_concurrent_recv)
-		{
-			std::atomic_fetch_sub(&this->current_recv, 1);
-		}
+		this->recv_lock->join_and_wait_till_my_turn(slave_index);
+
 		this->notify_send_begin(this->slaves_conns[slave_index]);
 
 		breakdown = system_clock::now();
 
 		this->receive_gradients_from_one(slave_index, gradients);
-		std::atomic_fetch_sub(&this->current_recv, 1);
+
+		this->recv_lock->release();
 
 		std::cout << "(recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
 

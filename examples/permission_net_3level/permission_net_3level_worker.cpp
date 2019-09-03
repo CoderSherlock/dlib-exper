@@ -62,7 +62,7 @@ int main(int argc, char **argv) try
 
 	if (argc < 2)
 	{
-		cout << "Master program has invalid argumnets" << endl;
+		cout << "Master program has invalid arguments" << endl;
 		return 1;
 	}
 

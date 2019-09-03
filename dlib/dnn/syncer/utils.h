@@ -5,6 +5,7 @@
 #include "../trainer.h"
 #include <iostream>
 #include <list>
+#include <mutex>
 
 #define COMP_BUFFER_SIZE 4096
 #define SYNC_VERBOSE 0
@@ -135,6 +136,58 @@ struct task_op
 	int reserved = 0;
 	double operand1 = 0;
 	double operand2 = 0;
+};
+
+class queue_lock
+{
+public:
+	queue_lock(int _max_exec)
+	{
+		this->max_execution = _max_exec;
+		this->current_execution = 0;
+	}
+
+	bool join_and_wait_till_my_turn(int number)
+	{
+		lock.lock();
+		this->exec_queue.push(number);
+		lock.unlock();
+
+		while (1)
+		{
+			lock.lock();
+			if (current_execution >= max_execution) {
+				lock.unlock();
+				continue;
+			} 
+			if (this->exec_queue.front() != number) {
+				lock.unlock();
+			}
+			else
+				break;
+		}
+
+		this->current_execution += 1;
+		this->exec_queue.pop();
+		lock.unlock();
+
+		return true;
+	}
+
+	bool release()
+	{
+		lock.lock();
+		this->current_execution -= 1;
+		lock.unlock();
+
+		return true;
+	}
+
+private:
+	volatile int max_execution;
+	volatile int current_execution;
+	std::queue<int> exec_queue;
+	const mutex lock;
 };
 
 namespace network

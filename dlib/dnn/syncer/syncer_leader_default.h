@@ -194,7 +194,6 @@ void dnn_leader<trainer_type>::send_parameters(connection *slave)
 		}
 	}
 
-	this->current_send -= 1;
 }
 
 /******************************************************
@@ -230,10 +229,10 @@ void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized()
 	for (size_t i = 0; i < receivers.size(); i++)
 	{
 		if (this->slaves_status[i] == slaveStatus::Running)
-			while(this->current_send >= this->max_concurrent_send) {}
-			this->current_send += 1;
-			std::cout << "Send to worker " << i << std::endl; 
+		{
+			std::cout << "Send to worker " << i << std::endl;
 			receivers[i] = new std::thread(&dnn_leader::send_parameters, this, this->slaves_conns[i]);
+		}
 	}
 
 	for (size_t i = 0; i < receivers.size(); i++)
