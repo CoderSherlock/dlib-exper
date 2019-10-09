@@ -338,8 +338,8 @@ public:
 	void subdispatch(unsigned long start, unsigned long end);
 
 protected:
-	queue_lock *send_lock = new queue_lock(16);
-	queue_lock *recv_lock = new queue_lock(16);
+	queue_lock *send_lock = new queue_lock(100);
+	queue_lock *recv_lock = new queue_lock(100);
 };
 
 template <typename trainer_type>
