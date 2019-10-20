@@ -249,6 +249,9 @@ void dnn_leader<trainer_type>::send_parameters_to_slaves_paralized()
 template <typename trainer_type>
 int dnn_leader<trainer_type>::receive_gradients_from_one(int slave_index, std::vector<std::vector<resizable_tensor>> &cli_tensors)
 {
+	this->wait_finishing(this->slaves_conns[slave_index]);
+
+	this->notify_send_begin(this->slaves_conns[slave_index]);
 
 	for (size_t i = 0; i < cli_tensors[slave_index].size(); i++)
 	{
@@ -613,6 +616,9 @@ void dnn_leader<trainer_type>::sync()
 		// TODO : Deal with 0
 		temp[i] = &all_tensors[0][i];
 	}
+
+	this->notify_train_finish();
+	this->wait_to_send();
 
 	for (size_t i = 0; i < temp.size(); i++)
 	{

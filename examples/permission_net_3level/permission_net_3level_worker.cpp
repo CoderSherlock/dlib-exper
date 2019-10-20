@@ -238,11 +238,7 @@ int main(int argc, char **argv) try
 				trainer.status_lock.unlock();
 
 				std::cout << "(train+recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
-				if(me.number % 16 == 1) {
-					char pause_input;
-					std::cin >> pause_input;
-				};
-
+				
 				syncer.notify_train_finish();
 				syncer.wait_to_send();
 				breakdown = system_clock::now();

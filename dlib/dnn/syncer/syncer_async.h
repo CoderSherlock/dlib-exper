@@ -358,7 +358,7 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 		auto i = this->tq.queue.begin();
 		if (i == this->tq.queue.end())
 		{
-			std::cout << batch_pos << "/" << batch_amount << std::endl;
+			// std::cout << batch_pos << "/" << batch_amount << std::endl;
 			if (batch_pos >= batch_amount)
 			{
 				std::cout << "Finished training task" << std::endl;
