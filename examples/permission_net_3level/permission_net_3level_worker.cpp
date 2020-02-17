@@ -205,11 +205,10 @@ int main(int argc, char **argv) try
 		{
 
 			mark += 1;
-
-			task_op operation = syncer.wait_for_task();
-
 			auto batch_time = system_clock::now(); // *_*
 			auto breakdown = system_clock::now();  // *_*
+			task_op operation = syncer.wait_for_task();
+
 
 			switch (operation.opcode)
 			{
@@ -330,6 +329,8 @@ int main(int argc, char **argv) try
 
 		while (true)
 		{
+			auto batch_time = system_clock::now(); // *_*
+			auto breakdown = system_clock::now();  // *_*
 			task_op operation = syncer.wait_for_task();
 
 			switch (operation.opcode)
@@ -343,6 +344,8 @@ int main(int argc, char **argv) try
 				// HPZ: Sync lateset parameters
 				std::vector<resizable_tensor> latest_parameters;
 				syncer.receive_latest_parameters(latest_parameters);
+				std::cout << "(wait+recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+				breakdown = system_clock::now();
 
 				std::vector<tensor *> temp(syncer.trainer->num_computational_layers);
 				for (size_t i = 0; i < temp.size(); i++)
@@ -355,9 +358,15 @@ int main(int argc, char **argv) try
 				// TODO: Dispatch jobs
 				syncer.subdispatch(start, end);
 
+				std::cout << "(prepare " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+				breakdown = system_clock::now();
+
 				syncer.sync();
 
 				std::cout << "Learning rate is " << trainer.learning_rate << std::endl;
+				
+				std::cout << "(sync " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+
 				break;
 			}
 			default:
@@ -383,6 +392,9 @@ int main(int argc, char **argv) try
 				std::cout << "---------------------------" << std::endl;
 				break;
 			}
+
+			std::cout << "Time for batch is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - batch_time).count() << std::endl; // *_*
+
 		}
 	}
 	else if (role == device_role::supleader)
