@@ -9,7 +9,7 @@
 #include <chrono>
 #include <csignal>
 
-#include "../dnn_dist_data.h"
+// #include "../dnn_dist_data.h"
 
 #define ASYNC 1
 
@@ -414,7 +414,7 @@ int main(int argc, char **argv) try
 		syncer.ending_time = 5;
 		std::cout << syncer.ending_time << std::endl;
 
-		syncer.sync((unsigned long)training.getData().size());
+		syncer.sync((unsigned long)training.getData().size(), NULL);
 		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
 		std::cout << "All time: " << print_time << std::endl;
 	}

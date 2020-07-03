@@ -11,7 +11,7 @@ namespace dlib
 class dt_config
 {
 public:
-    std::string training_dataset_path;
+    std::list<std::string> training_dataset_path;
     std::list<std::string> testing_dataset_path;
     std::list<device> device_list;
 
@@ -60,12 +60,13 @@ public:
         // Read header (line number of different records)
         f >> training_lines >> testing_lines >> device_lines;
 
+        std::string tmp;
         while (training_lines--)
         {
-            f >> training_dataset_path;
+            f >> tmp;
+            this->training_dataset_path.push_back(tmp);
         }
 
-        std::string tmp;
         while (testing_lines--)
         {
             f >> tmp;

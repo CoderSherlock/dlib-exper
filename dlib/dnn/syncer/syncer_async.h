@@ -302,20 +302,27 @@ void dnn_async_leader<trainer_type>::subsync(unsigned long training_size)
 };
 
 template <typename trainer_type>
-void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
+void dnn_async_leader<trainer_type>::sync(unsigned long training_size, dataset<matrix<int>, unsigned long> *testing)
 {
-	int epoch = 1, batch_amount = 0, batch_pos = 0;
+	int epoch = 1, old_epoch = 1, batch_amount = 0, batch_pos = 0;
 	unsigned long current_start = 0;
+	size_t last_updated_slave = -1;
 
 	while (1)
-	{
+	{		
 		// Check idle workers & dispatch jobs
 		for (int i = 0; i < this->slaves_status.size(); i++)
 		{
-			if (epoch > this->ending_time)
-			{
-				// std::cout << "Break!" << std::endl;
-				break;
+			// if (this->trainer->learning_rate <= 0.001)
+			if (epoch != old_epoch) {
+				// if (epoch > this->ending_time)
+				if (testing->accuracy(this->trainer->get_net()) >= 0.98)
+				{
+					std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!! epoch = " << epoch << std::endl;
+					std::cout << "Break!" << std::endl;
+					break;
+				}
+				old_epoch = epoch;
 			}
 
 			if (this->slaves_status[i] == slaveStatus::Running && this->idle_worker[i] == true)
@@ -376,39 +383,65 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size)
 			this->tq.queue_lock.unlock();
 
 			// Update to trainer
-			std::vector<std::vector<tensor *>> paras;
-			std::vector<tensor *> temp(this->trainer->num_computational_layers);
+			if ((*i).slave_index != last_updated_slave) {
 
-			for (size_t j = 0; j < temp.size(); j++)
-			{
-				temp[j] = &((*i).tensors[j]);
+				std::vector<std::vector<tensor *>> paras;
+				std::vector<tensor *> temp(this->trainer->num_computational_layers);
+
+				for (size_t j = 0; j < temp.size(); j++)
+				{
+					temp[j] = &((*i).tensors[j]);
+				}
+
+				std::vector<tensor *> old_tensors;
+				old_tensors.resize(this->trainer->num_computational_layers);
+
+				visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+					old_tensors[i] = &t;
+				});
+
+				paras.push_back(old_tensors);
+				paras.push_back(temp);
+
+				this->trainer->read_lock.lock();
+
+				this->average_ptr(paras);
+
+				this->trainer->read_lock.unlock();
+				//sleep(10000);
+
+				while (this->tq.queue_lock.trylock() == 0)
+				{
+				};
+
+				this->tq.queue.erase(i);
+				batch_pos += 1;
+
+				this->tq.queue_lock.unlock();
+			} else {
+				std::cout << "Replaced !!!!!!" << std::endl;
+				std::vector<tensor *> temp(this->trainer->num_computational_layers);
+				for (size_t j = 0; j < temp.size(); j++)
+				{
+					temp[j] = &((*i).tensors[j]);
+				}
+				this->trainer->read_lock.lock();
+
+				this->update(temp);
+				
+				this->trainer->read_lock.unlock();
+
+				while (this->tq.queue_lock.trylock() == 0)
+				{
+				};
+
+				this->tq.queue.erase(i);
+				batch_pos += 1;
+
+				this->tq.queue_lock.unlock();
+
 			}
-
-			std::vector<tensor *> old_tensors;
-			old_tensors.resize(this->trainer->num_computational_layers);
-
-			visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
-				old_tensors[i] = &t;
-			});
-
-			paras.push_back(old_tensors);
-			paras.push_back(temp);
-
-			this->trainer->read_lock.lock();
-
-			this->average_ptr(paras);
-
-			this->trainer->read_lock.unlock();
-			//sleep(10000);
-
-			while (this->tq.queue_lock.trylock() == 0)
-			{
-			};
-
-			this->tq.queue.erase(i);
-			batch_pos += 1;
-
-			this->tq.queue_lock.unlock();
+			last_updated_slave = (*i).slave_index;
 		}
 	}
 

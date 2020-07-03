@@ -30,6 +30,9 @@
 #include "utils.h"
 #include "utils_debug.h"
 
+#include "../../../examples/dnn_dist_data.h"
+
+
 using std::chrono::system_clock;
 
 namespace dlib
@@ -370,7 +373,7 @@ public:
 
 	void subsync(unsigned long);
 
-	void sync(unsigned long);
+	void sync(unsigned long, dataset<matrix<int>, unsigned long>*);
 
 	int ending_time;
 
