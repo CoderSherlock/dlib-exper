@@ -604,8 +604,13 @@ void dnn_leader<trainer_type>::sync()
 	std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
 	std::vector<std::vector<resizable_tensor>> all_tensors;
 
+	auto breakdown = system_clock::now();  // *_*
+
 	this->send_parameters_to_slaves_paralized();
 	this->receive_gradients_parallism(all_tensors);
+
+	std::cout << "(waitchild " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+	breakdown = system_clock::now();
 
 	this->average(all_tensors);
 
@@ -620,6 +625,9 @@ void dnn_leader<trainer_type>::sync()
 	this->notify_train_finish();
 	this->wait_to_send();
 
+	std::cout << "(average+wait " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+	breakdown = system_clock::now();
+
 	for (size_t i = 0; i < temp.size(); i++)
 	{
 		std::cout << i << " " << temp[i]->size() << std::endl;
@@ -629,6 +637,9 @@ void dnn_leader<trainer_type>::sync()
 			network::send_compressed_tensor(this->master_conn, temp[i]);
 		}
 	}
+
+	std::cout << "(send " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+
 };
 
 template <typename trainer_type>
