@@ -81,10 +81,13 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 	while (1)
 	{
 		this->job_signal_mutex[slave_index]->lock();
-		if (this->signal_status[slave_index] != true)
+		if (this->signal_status[slave_index] != true) {
+			std::cout << "[debug]Wait " << slave_index << std::endl;
 			this->job_signal[slave_index]->wait();
-
+			std::cout << "[debug]Resume " << slave_index << std::endl;
+		}
 		this->job_signal_mutex[slave_index]->unlock();
+
 
 		if (this->slaves_status[slave_index] != slaveStatus::Running)
 			break;
@@ -119,13 +122,17 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 
 		// this->send_lock->release();
 
-		std::cout << "(send " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+		std::cout << "(send from " << slave_index << " " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
 
 		this->wait_finishing(this->slaves_conns[slave_index]);
 
 		// this->recv_lock->join_and_wait_till_my_turn(slave_index);
+		std::cout << "(worker " << slave_index << " finished"<< std::endl; // *_*
 
 		this->notify_send_begin(this->slaves_conns[slave_index]);
+
+		std::cout << "(worker " << slave_index << " start to send"<< std::endl; // *_*
+
 
 		breakdown = system_clock::now();
 
@@ -133,7 +140,7 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 
 		// this->recv_lock->release();
 
-		std::cout << "(recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
+		std::cout << "(recv from" << slave_index << " " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
 
 		// std::cout << "Received from slave " << slave_index << std::endl;
 
@@ -302,27 +309,41 @@ void dnn_async_leader<trainer_type>::subsync(unsigned long training_size)
 };
 
 template <typename trainer_type>
-void dnn_async_leader<trainer_type>::sync(unsigned long training_size, dataset<matrix<int>, unsigned long> *testing)
+void dnn_async_leader<trainer_type>::sync(unsigned long training_size, dataset<matrix<unsigned char>, unsigned long> *testing)
 {
 	int epoch = 1, old_epoch = 1, batch_amount = 0, batch_pos = 0;
 	unsigned long current_start = 0;
 	size_t last_updated_slave = -1;
 
 	while (1)
-	{		
+	{	
+		if (epoch != old_epoch) {
+			// if (testing->accuracy(this->trainer->get_net()) >= 0.98)
+			if (epoch >= this->ending_time)
+			{
+				std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!! epoch = " << epoch << std::endl;
+				std::cout << "Break!" << std::endl;
+				std::cout << batch_pos << "/" << batch_amount << std::endl;
+				break;
+			}
+			old_epoch = epoch;
+		}
+
 		// Check idle workers & dispatch jobs
 		for (int i = 0; i < this->slaves_status.size(); i++)
 		{
 			// if (this->trainer->learning_rate <= 0.001)
 			if (epoch != old_epoch) {
 				// if (epoch > this->ending_time)
-				if (testing->accuracy(this->trainer->get_net()) >= 0.98)
-				{
-					std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!! epoch = " << epoch << std::endl;
-					std::cout << "Break!" << std::endl;
-					break;
-				}
-				old_epoch = epoch;
+				// if (testing->accuracy(this->trainer->get_net()) >= 0.98)
+				// {
+				// 	std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!! epoch = " << epoch << std::endl;
+				// 	std::cout << "Break!" << std::endl;
+				// 	std::cout << batch_pos << "/" << batch_amount << std::endl;
+				// 	// old_epoch = epoch;
+				// 	break;
+				// }
+				// old_epoch = epoch;
 			}
 
 			if (this->slaves_status[i] == slaveStatus::Running && this->idle_worker[i] == true)
@@ -451,7 +472,12 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size, dataset<m
 	}
 	for (size_t i = 0; i < this->receivers.size(); i++)
 	{
+		std::cout << "[debug]Time to stop" << std::endl;
+		this->job_signal_mutex[i]->lock();
+		this->signal_status[i] = true;
+		this->job_signal_mutex[i]->unlock();
 		this->job_signal[i]->signal();
+		std::cout << "[debug]Signaled" << std::endl;
 		this->receivers[i]->join();
 	}
 };

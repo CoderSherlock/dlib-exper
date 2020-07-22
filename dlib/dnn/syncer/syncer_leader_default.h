@@ -609,6 +609,8 @@ void dnn_leader<trainer_type>::sync()
 	this->send_parameters_to_slaves_paralized();
 	this->receive_gradients_parallism(all_tensors);
 
+	std::cout << this->me.ip << ":" << this->me.port << " collected all data" << std::endl;
+
 	std::cout << "(waitchild " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
 	breakdown = system_clock::now();
 

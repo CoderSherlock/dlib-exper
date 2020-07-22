@@ -451,7 +451,7 @@ int main(int argc, char **argv) try
 
 		dataset<matrix<int>, unsigned long> testing = training;
 
-		syncer.sync((unsigned long)training.getData().size(), &testing);
+		// syncer.sync((unsigned long)training.getData().size(), &testing);
 		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
 		std::cout << "All time: " << print_time << std::endl;
 	}

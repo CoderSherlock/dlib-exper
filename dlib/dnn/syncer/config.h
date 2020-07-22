@@ -14,6 +14,7 @@ public:
     std::list<std::string> training_dataset_path;
     std::list<std::string> testing_dataset_path;
     std::list<device> device_list;
+    int ending_epoch;
 
     int get_role(std::string ip, int port)
     {
@@ -58,7 +59,7 @@ public:
         int training_lines, testing_lines, device_lines;
 
         // Read header (line number of different records)
-        f >> training_lines >> testing_lines >> device_lines;
+        f >> training_lines >> testing_lines >> device_lines >> this->ending_epoch;
 
         std::string tmp;
         while (training_lines--)

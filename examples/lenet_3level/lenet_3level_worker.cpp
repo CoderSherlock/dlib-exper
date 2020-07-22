@@ -95,15 +95,11 @@ int main(int argc, char **argv) try
 	char *training_data_path = strdup(distributed_trainer_config.training_dataset_path.begin()->c_str());
 
 	dataset<matrix<unsigned char>, unsigned long> training(load_mnist_training_data, training_data_path);
-	std::list<dataset<matrix<unsigned char>, unsigned long>> testings;
 
-	for (auto testing_data_itr = distributed_trainer_config.testing_dataset_path.begin(); testing_data_itr != distributed_trainer_config.testing_dataset_path.end(); ++testing_data_itr)
-	{
-		char *testing_data_path = strdup(testing_data_itr->c_str());
-		dataset<matrix<unsigned char>, unsigned long> testing(load_mnist_testing_data, testing_data_path);
-		testings.push_back(testing);
-	}
+	char *testing_data_path = strdup(distributed_trainer_config.testing_dataset_path.begin()->c_str());
+	dataset<matrix<unsigned char>, unsigned long> testing(load_mnist_testing_data, testing_data_path);
 
+	training = training.split(0, 6000);
 	std::cout << training.getData().size() << std::endl;
 
 	int all = 0, ben = 0;
@@ -411,10 +407,12 @@ int main(int argc, char **argv) try
 
 		auto real_time = system_clock::now();
 		auto print_time = 0;
-		syncer.ending_time = 5;
+		syncer.ending_time = distributed_trainer_config.ending_epoch;
 		std::cout << syncer.ending_time << std::endl;
 
-		syncer.sync((unsigned long)training.getData().size(), NULL);
+		dataset<matrix<unsigned char>, unsigned long> testing = training;
+
+		syncer.sync((unsigned long)training.getData().size(), &testing);
 		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
 		std::cout << "All time: " << print_time << std::endl;
 	}
@@ -428,15 +426,10 @@ int main(int argc, char **argv) try
 	std::cout << std::endl;
 
 	// Validating testing dataset
-	auto name = distributed_trainer_config.testing_dataset_path.begin();
-	auto data = testings.begin();
-	for (; name != distributed_trainer_config.testing_dataset_path.end(); ++name, ++data)
-	{
-		std::cout << *name << std::endl;
-		data->accuracy(net);
-		std::cout << std::endl;
-	}
+	std::cout << *(distributed_trainer_config.testing_dataset_path.begin()) << std::endl;
+	testing.accuracy(net);
 	std::cout << std::endl;
+
 
 	std::cout << trainer << std::endl;
 	//sleep ((unsigned int) 3600);

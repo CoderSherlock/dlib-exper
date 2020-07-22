@@ -373,7 +373,7 @@ public:
 
 	void subsync(unsigned long);
 
-	void sync(unsigned long, dataset<matrix<int>, unsigned long>*);
+	void sync(unsigned long, dataset<matrix<unsigned char>, unsigned long>*);
 
 	int ending_time;
 

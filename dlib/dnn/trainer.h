@@ -769,10 +769,14 @@ namespace dlib
 				if (isDistributed)
 				{
                     this->distributed_signal.get_mutex().lock();
-                    if (ready_status != 2)
+                    if (ready_status != 2){
+                        std::cout << "Now waiting debug" << std::endl;
                         distributed_signal.wait();
-                    
+                    }
+                    std::cout << "here" << std::endl;
                     this->status_lock.unlock();
+                    std::cout << "there" << std::endl;
+
 				}					
 				
                 if (next_job.test_only)

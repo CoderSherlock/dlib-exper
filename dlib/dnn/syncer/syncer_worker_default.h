@@ -40,6 +40,7 @@ void dnn_worker<trainer_type>::pre_train(task_op operation)
 		this->trainer->ready_status = 2;
 		this->trainer->status_lock.unlock();
 		this->trainer->distributed_signal.signal();
+
 		break;
 	}
 	default:

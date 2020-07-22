@@ -119,7 +119,7 @@ public:
 };
 
 int load_mnist_training_data(char* dataset, std::vector<matrix<unsigned char>> &data, std::vector<unsigned long> &label) {
-	try{
+	// try{
 		std::vector<matrix < unsigned char>> training_images;
 		std::vector<unsigned long> training_labels;
 		std::vector<matrix < unsigned char>> testing_images;
@@ -128,10 +128,10 @@ int load_mnist_training_data(char* dataset, std::vector<matrix<unsigned char>> &
 
 		data = training_images;
 		label = training_labels;
-	} catch(...) {
-		std::cerr << "Something wrong with loading training data and labels"	<< std::endl;
-		return 0;
-	}
+	// } catch(...) {
+	// 	std::cerr << "Something wrong with loading training data and labels"	<< std::endl;
+	// 	return 0;
+	// }
 	return 1;
 
 };
