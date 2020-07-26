@@ -375,6 +375,9 @@ public:
 
 	void sync(unsigned long, dataset<matrix<unsigned char>, unsigned long>*);
 
+	void sync_synced(unsigned long, dataset<matrix<unsigned char>, unsigned long>*);
+
+
 	int ending_time;
 
 private:

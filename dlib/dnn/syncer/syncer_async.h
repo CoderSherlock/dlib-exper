@@ -153,7 +153,7 @@ void dnn_async_leader<trainer_type>::async_thread(int slave_index)
 		// if (this->counter[slave_index] >= this->ending_time)
 		// 	break;
 
-		this->idle_worker[slave_index] = true;
+		// this->idle_worker[slave_index] = true;
 	}
 };
 
@@ -318,8 +318,8 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size, dataset<m
 	while (1)
 	{	
 		if (epoch != old_epoch) {
-			// if (testing->accuracy(this->trainer->get_net()) >= 0.98)
-			if (epoch >= this->ending_time)
+			if (testing->accuracy(this->trainer->get_net()) >= 0.98)
+			// if (epoch >= this->ending_time)
 			{
 				std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!! epoch = " << epoch << std::endl;
 				std::cout << "Break!" << std::endl;
@@ -464,6 +464,166 @@ void dnn_async_leader<trainer_type>::sync(unsigned long training_size, dataset<m
 			}
 			last_updated_slave = (*i).slave_index;
 		}
+	}
+
+	for (size_t i = 0; i < this->receivers.size(); i++)
+	{
+		this->slaves_status[i] = slaveStatus::NotConn;
+	}
+	for (size_t i = 0; i < this->receivers.size(); i++)
+	{
+		std::cout << "[debug]Time to stop" << std::endl;
+		this->job_signal_mutex[i]->lock();
+		this->signal_status[i] = true;
+		this->job_signal_mutex[i]->unlock();
+		this->job_signal[i]->signal();
+		std::cout << "[debug]Signaled" << std::endl;
+		this->receivers[i]->join();
+	}
+};
+
+template <typename trainer_type>
+void dnn_async_leader<trainer_type>::sync_synced(unsigned long training_size, dataset<matrix<unsigned char>, unsigned long> *testing)
+{
+	int epoch = 1, old_epoch = 1, batch_amount = 0, batch_pos = 0;
+	unsigned long current_start = 0;
+	size_t last_updated_slave = -1;
+
+	while (1)
+	{	
+		if (epoch != old_epoch) {
+			if (testing->accuracy(this->trainer->get_net()) >= 0.98)
+			// if (epoch >= this->ending_time)
+			{
+				std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!! epoch = " << epoch << std::endl;
+				std::cout << "Break!" << std::endl;
+				std::cout << batch_pos << "/" << batch_amount << std::endl;
+				break;
+			}
+			old_epoch = epoch;
+		}
+
+		// Check idle workers & dispatch jobs
+		for (int i = 0; i < this->slaves_status.size(); i++)
+		{
+			// if (this->trainer->learning_rate <= 0.001)
+			if (epoch != old_epoch) {
+				// if (epoch > this->ending_time)
+				// if (testing->accuracy(this->trainer->get_net()) >= 0.98)
+				// {
+				// 	std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!! epoch = " << epoch << std::endl;
+				// 	std::cout << "Break!" << std::endl;
+				// 	std::cout << batch_pos << "/" << batch_amount << std::endl;
+				// 	// old_epoch = epoch;
+				// 	break;
+				// }
+				// old_epoch = epoch;
+			}
+
+			if (this->slaves_status[i] == slaveStatus::Running && this->idle_worker[i] == true)
+			{
+				task_op worker_job;
+				unsigned long start = current_start, end = (current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? training_size - 1 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability);
+				worker_job.opcode = 1;
+				std::memcpy(&worker_job.operand1, &start, sizeof(worker_job.operand1));
+				std::memcpy(&worker_job.operand2, &end, sizeof(worker_job.operand2));
+
+				// std::cout << worker_job.opcode << ":" << worker_job.operand1 << "~" << worker_job.operand2 << std::endl;
+				this->dispatch_jobs(i, worker_job);
+				this->job_signal_mutex[i]->lock();
+				this->signal_status[i] = true;
+				this->job_signal_mutex[i]->unlock();
+				this->job_signal[i]->signal();
+				this->idle_worker[i] = false;
+				batch_amount += 1;
+
+				// if (current_start + 128 >= training_size - 1)
+				// {
+				// 	epoch += 1;
+				// 	std::cout << "-----" << std::endl;
+				// 	std::cout << "|" << epoch << "|" << std::endl;
+				// 	std::cout << "-----" << std::endl;
+				// }
+
+				current_start = ((current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? 0 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability));
+				if (current_start == 0)
+				{
+					epoch += 1;
+				}
+			}
+		}
+
+		// Checking updated gradients.
+		while (this->tq.queue_lock.trylock() == 0)
+		{
+		};
+		int ready_children_amount = 0;
+		for (auto i = this->tq.queue.begin(); i != this->tq.queue.end(); i++) {
+			if ((*i).ready == 1) {
+				ready_children_amount += 1;
+			}
+		}
+
+		if (this->tq.queue.size() == this->receivers.size()) {
+			std::vector<std::vector<tensor *>> paras;
+
+			std::vector<tensor *> old_tensors;
+			old_tensors.resize(this->trainer->num_computational_layers);
+
+			visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+				old_tensors[i] = &t;
+			});
+
+			paras.push_back(old_tensors);
+
+
+			for (auto j = this->tq.queue.begin(); j != this->tq.queue.end(); j++) {
+				// (*j).ready = 0;
+				std::vector<tensor *> temp(this->trainer->num_computational_layers);
+				for (size_t k = 0; k < temp.size(); k++)
+				{
+					temp[k] = &((*j).tensors[k]);
+				}
+				paras.push_back(temp);
+			}
+
+			this->trainer->read_lock.lock();
+
+			this->average_ptr(paras);
+
+			this->trainer->read_lock.unlock();
+			//sleep(10000);
+			std::cout << "start to do" << std::endl;
+
+
+			// while (this->tq.queue_lock.trylock() == 0)
+			// {
+			// };
+
+			this->tq.queue.clear();
+				
+
+			for (size_t l = 0; l < this->receivers.size(); l++) {
+				this->idle_worker[l] = true;
+			}
+
+		} else {
+			std::cout << "Nope , we have " << ready_children_amount << "/" << this->tq.queue.size() << std::endl;
+			for (size_t l = 0; l < this->receivers.size(); l++) {
+				bool found = false;
+				for (auto j = this->tq.queue.begin(); j != this->tq.queue.end(); j++) {
+					if ((*j).slave_index == l) {found = true; break;}
+				}
+				if (!found) {std::cout << " " << l;}
+			}
+			std::cout << " missing!!!!" << std::endl;
+
+			for (auto j = this->tq.queue.begin(); j != this->tq.queue.end(); j++) {
+				std::cout << (*j).slave_index << std::endl;
+			}
+			std::cout << " is the queue!!!!" << std::endl;
+		}
+		this->tq.queue_lock.unlock();
 	}
 
 	for (size_t i = 0; i < this->receivers.size(); i++)

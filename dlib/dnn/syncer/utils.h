@@ -118,6 +118,14 @@ public:
 		return false;
 	}
 
+	void clear()
+	{
+		while (queue_lock.trylock() == 0)
+			;
+		queue.clear();
+		queue_lock.unlock();
+	}
+
 	// private:
 	std::list<task> queue;
 	mutex queue_lock;
