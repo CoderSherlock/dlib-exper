@@ -567,14 +567,14 @@ void dnn_async_leader<trainer_type>::sync_synced(unsigned long training_size, da
 		if (this->tq.queue.size() == this->receivers.size()) {
 			std::vector<std::vector<tensor *>> paras;
 
-			std::vector<tensor *> old_tensors;
-			old_tensors.resize(this->trainer->num_computational_layers);
+			// std::vector<tensor *> old_tensors;
+			// old_tensors.resize(this->trainer->num_computational_layers);
 
-			visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
-				old_tensors[i] = &t;
-			});
+			// visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+			// 	old_tensors[i] = &t;
+			// });
 
-			paras.push_back(old_tensors);
+			// paras.push_back(old_tensors);
 
 
 			for (auto j = this->tq.queue.begin(); j != this->tq.queue.end(); j++) {
@@ -587,9 +587,16 @@ void dnn_async_leader<trainer_type>::sync_synced(unsigned long training_size, da
 				paras.push_back(temp);
 			}
 
+			this->average_ptr(paras);
+			std::vector<tensor *> temp(this->trainer->num_computational_layers);
+			for (size_t j = 0; j < temp.size(); j++)
+			{
+				temp[j] = paras[0][j];
+			}
+
 			this->trainer->read_lock.lock();
 
-			this->average_ptr(paras);
+			this->update(temp);
 
 			this->trainer->read_lock.unlock();
 			//sleep(10000);

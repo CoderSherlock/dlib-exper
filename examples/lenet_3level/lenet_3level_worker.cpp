@@ -412,7 +412,7 @@ int main(int argc, char **argv) try
 
 		dataset<matrix<unsigned char>, unsigned long> testing = training;
 
-		syncer.sync_synced((unsigned long)training.getData().size(), &testing);
+		syncer.sync((unsigned long)training.getData().size(), &testing);
 		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
 		std::cout << "All time: " << print_time << std::endl;
 	}
