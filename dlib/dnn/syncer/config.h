@@ -79,7 +79,7 @@ public:
         while (device_lines--)
         {
             f >> number >> ip >> port >> role >> master;
-            device temp(number, ip, port, role, master, 0);
+            device temp(number, ip, port, role, master, 0, device_sync_type(1));
             device_list.push_back(temp);
         }
 

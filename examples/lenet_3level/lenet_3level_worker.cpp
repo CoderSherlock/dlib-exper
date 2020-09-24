@@ -43,65 +43,75 @@ int main(int argc, char **argv) try
 		return 1;
 	}
 
-	char *config_path; // File contains all slave ip and port information
+	char *config_path; 						// File contains all slave ip and port information
+	device me;								// device information include ip and port
+	device master;							// parent device information
+	std::vector<device> slave_list;			// children device information
+	dt_config distributed_trainer_config;	// All-topology network structure information
 
-	int ismaster = 1;
-	device me;
-	device master;
-
-	std::vector<device> slave_list;
 
 	// Get the mode, ip and port
 	me.ip = argv[1];
 	me.port = atoi(argv[2]);
 	me.number = atoi(argv[3]);
 
-	// Print self information
-	std::cout << "Local Machine info:\n";
-	std::cout << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
+	//////////////////////////////////////////////////////////////////////////////////////
+	/* Print self information *///////////////////////////////////////////////////////////
+	std::cout << "Local Machine info:\n";												//
+	std::cout << " " << me.ip << ":" << me.port << " " << me.number << std::endl;		//
+																						//
+	for (int i = 1; i < argc; i++)														//
+	{																					//
+		if (strcmp(argv[i], "-c") == 0)													//
+		{																				//
+			config_path = argv[i + 1];													//
+			std::cout << "Slaveset:\t" << config_path << std::endl;						//
+		}																				//
+	}																					//
+	//////////////////////////////////////////////////////////////////////////////////////
 
-	for (int i = 1; i < argc; i++)
-	{
-		if (strcmp(argv[i], "-c") == 0)
-		{
-			config_path = argv[i + 1];
-			std::cout << "Slaveset:\t" << config_path << std::endl;
-		}
-	}
 
-	// Get slaves
-	dt_config distributed_trainer_config;
-	distributed_trainer_config.read_config(config_path);
 
-	int role = distributed_trainer_config.get_role(me.ip, me.port);
-	me.number = distributed_trainer_config.get_number(me.ip, me.port);
-	std::cout << "I'm a " << (role == 0 ? "worker" : (role == 1 ? "leader" : (role == 2 ? "supleader" : "undecided"))) << std::endl;
-	for (auto i = distributed_trainer_config.device_list.begin(); i != distributed_trainer_config.device_list.end(); ++i)
-	{
-		if (i->master == me.number)
-		{
-			i->comp_ability = get_comp_ability(i->number, distributed_trainer_config.device_list);
-			slave_list.push_back(*i);
-		}
-	}
-
-	me.comp_ability = 0;
-	for (auto i = slave_list.begin(); i != slave_list.end(); ++i)
-	{
-		me.comp_ability += i->comp_ability;
-	}
-
-	// Get data
-	char *training_data_path = strdup(distributed_trainer_config.training_dataset_path.begin()->c_str());
-
-	dataset<matrix<unsigned char>, unsigned long> training(load_mnist_training_data, training_data_path);
-
-	char *testing_data_path = strdup(distributed_trainer_config.testing_dataset_path.begin()->c_str());
-	dataset<matrix<unsigned char>, unsigned long> testing(load_mnist_testing_data, testing_data_path);
-
-	training = training.split(0, 6000);
-	std::cout << training.getData().size() << std::endl;
-
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* Fetch distributed-learning-system's configuration *////////////////////////////////////////////////////////////////////////////////
+	distributed_trainer_config.read_config(config_path);																				//
+																																		//
+	int role = distributed_trainer_config.get_role(me.ip, me.port);																		//
+	me.number = distributed_trainer_config.get_number(me.ip, me.port);																	//
+																																		//
+	// Validating current node's role -> worker or leader or supleader?																	//
+	std::cout << "I'm a " << (role == 0 ? "worker" : (role == 1 ? "leader" : (role == 2 ? "supleader" : "undecided"))) << std::endl;	//
+																																		//
+	// Get slaves																														//
+	for (auto i = distributed_trainer_config.device_list.begin(); i != distributed_trainer_config.device_list.end(); ++i)				//
+	{																																	//
+		if (i->master == me.number)																										//
+		{																																//
+			i->comp_ability = get_comp_ability(i->number, distributed_trainer_config.device_list);										//
+			slave_list.push_back(*i);																									//
+		}																																//
+	}																																	//
+																																		//
+	me.comp_ability = 0;																												//
+	for (auto i = slave_list.begin(); i != slave_list.end(); ++i)																		//
+	{																																	//
+		me.comp_ability += i->comp_ability;																								//
+	}																																	//
+																																		//
+	// Get training data loaded																											//
+	char *training_data_path = strdup(distributed_trainer_config.training_dataset_path.begin()->c_str());								//
+																																		//
+	dataset<matrix<unsigned char>, unsigned long> training(load_mnist_training_data, training_data_path);								//
+																																		//
+	char *testing_data_path = strdup(distributed_trainer_config.testing_dataset_path.begin()->c_str());									//
+	dataset<matrix<unsigned char>, unsigned long> testing(load_mnist_testing_data, testing_data_path);									//
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	
+	training = training.split(0, 6000);						// Since lenet used mnist dataset with amount of 60000, we cut it to 1/10 of
+	std::cout << training.getData().size() << std::endl;	// the original for fast training, not necessary
+	
+	
+	
 	int all = 0, ben = 0;
 
 	/*
@@ -129,109 +139,35 @@ int main(int argc, char **argv) try
 	// HPZ: Setup synchronized protocol and test for the connection availability.
 	using trainer_type = dnn_trainer<net_type>;
 
+	/* Setup memory-disk synchronization file 				*
+	 * Commented since this is not working on odroid linux	*/
 	// char sync_filename[30];
 	// sprintf(sync_filename, "backup.%s.mm", "pe_test");
 	// trainer.set_synchronization_file(sync_filename, std::chrono::seconds(60));
 
 	if (role == device_role::worker)
 	{
-		dnn_worker<trainer_type> syncer(&trainer);
+		dnn_worker<trainer_type, matrix<unsigned char>, unsigned long> syncer(&trainer);
 
 		syncer.set_this_device(me);
 		syncer.set_role(role);
 
 		trainer.isDistributed = 1;
+		syncer.init_trainer(training);
 
-		while (trainer.ready_status < 1)
-		{
-		};
-
-		trainer.train_one_batch(training.getData(), training.getLabel());
-
-		trainer.distributed_signal.get_mutex().lock();
-		trainer.ready_status = 2;
-		trainer.status_lock.unlock();
-		trainer.distributed_signal.signal();
-
-		while (trainer.ready_status < 4)
-		{
-		};
-
-		// TODO: Wait for master connect
-		std::cout << "Wait for leader to init" << std::endl;
-		if (!syncer.wait_for_master_init())
-		{
-			std::cerr << "Error happens when master send init message" << std::endl;
-			exit(0);
-		}
-
-		// sleep((unsigned int)3600);
-
-		dataset<matrix<unsigned char>, unsigned long> local_training;
-
-		int epoch = 0, batch = 0;
-		int mark = 0;
-		auto time = 0;
+		int finished_batch = 0;
 
 		while (true)
 		{
-
-			mark += 1;
-
-			task_op operation = syncer.wait_for_task();
-
-			auto batch_time = system_clock::now(); // *_*
-			auto breakdown = system_clock::now();  // *_*
-
-			switch (operation.opcode)
-			{
-			case task_type::train_one_batch:
-			{
-
-				unsigned long start = *(unsigned long *)&operation.operand1, end = *(unsigned long *)&operation.operand2;
-				std::cout << start << "~" << end << std::endl;
-				std::cout << "diff:" << end - start << std::endl;
-				local_training = training.split(start, end);
-				trainer.epoch_pos = 0;
-				trainer.set_mini_batch_size(end - start);
-				std::cout << "mini_batch:" << trainer.get_mini_batch_size() << std::endl;
-				std::cout << "data_size:" << local_training.getData().size() << std::endl;
-
-				std::cout << "(prepare " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
-				breakdown = system_clock::now();
-
-				trainer.train_one_batch(local_training.getData(), local_training.getLabel());
-				syncer.pre_train(operation);
-
-				trainer.distributed_signal.get_mutex().lock();
-				if (trainer.ready_status != 3)
-					trainer.distributed_signal.wait();
-
-				trainer.status_lock.unlock();
-
-				std::cout << "(train+recv " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
-				// if(me.number % 2 == 1) sleep((unsigned int)10);
-
-				syncer.notify_train_finish();
-				syncer.wait_to_send();
-				breakdown = system_clock::now();
-				syncer.send_parameters_to_master();
-
-				std::cout << "(send " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - breakdown).count() << std::endl; // *_*
-
-				std::cout << "Learning rate is " << trainer.learning_rate << std::endl;
+			int do_task_status = syncer.do_one_task_asap();
+			if(do_task_status == -1)		// Recv an error task -> very likely to be a stop training signal 
 				break;
+			else if (do_task_status == 1){
+				finished_batch += 1;
+				continue;
 			}
-			default:
-			{
-				// HPZ: TODO
-				std::cout << "Error op" << std::endl;
-				epoch = 99999;
-			}
-			}
-
-			std::cout << "Time for batch is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - batch_time).count() << std::endl; // *_*
-
+			
+			
 			if (trainer.learning_rate <= 0.001)
 			{
 				std::cout << "---------------------------" << std::endl;
@@ -240,18 +176,18 @@ int main(int argc, char **argv) try
 				break;
 			}
 
-			if (epoch >= 5000)
+			if (finished_batch >= 500000)
 			{
-				std::cout << "---------------------------" << std::endl;
-				std::cout << "|Exit because 30 epochs   |" << std::endl;
-				std::cout << "---------------------------" << std::endl;
+				std::cout << "------------------------------" << std::endl;
+				std::cout << "|Exit because 500k batches   |" << std::endl;
+				std::cout << "------------------------------" << std::endl;
 				break;
 			}
 		}
 	}
 	else if (role == device_role::leader)
 	{
-		dnn_leader<trainer_type> syncer(&trainer, 0);
+		dnn_leader<trainer_type, matrix<unsigned char>, unsigned long> syncer(&trainer, 0);
 		syncer.set_this_device(me);
 		syncer.set_role(role);
 		syncer.exper = 1;
@@ -360,7 +296,7 @@ int main(int argc, char **argv) try
 	}
 	else if (role == device_role::supleader)
 	{
-		dnn_async_leader<trainer_type> syncer(&trainer, 0);
+		dnn_async_leader<trainer_type, matrix<unsigned char>, unsigned long> syncer(&trainer, 0);
 		syncer.set_this_device(me);
 		syncer.set_role(role);
 		syncer.exper = 1;
