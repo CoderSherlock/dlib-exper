@@ -28,6 +28,16 @@ namespace dlib
 	void dnn_syncer<trainer_type, data_type, label_type>::set_this_device(device me_)
 	{
 		this->me = me_;
+		// this->listener_thread_ptr = new std::thread(&dnn_syncer::listen_thread, this);
+	}
+
+	template <typename trainer_type,
+			  typename data_type,
+			  typename label_type>
+	void dnn_syncer<trainer_type, data_type, label_type>::set_master_device(device master_)
+	{
+		this->master = master_;
+		// this->listener_thread_ptr = new std::thread(&dnn_syncer::listen_thread, this);
 	}
 
 	/*
@@ -392,6 +402,51 @@ namespace dlib
 		}
 	}
 
+	
+	template <typename trainer_type,
+			  typename data_type,
+			  typename label_type>
+	void dnn_leader<trainer_type, data_type, label_type>::downstream_thread(int child_index, connection *src, bool *stop_flag)
+	{
+		task_op operation;
+		while(*stop_flag)
+		{
+			memset(&operation, '\0', sizeof(task_op));
+			// Read a control message as request
+			operation = this->wait_for_task(src);
+			// Receive the payload
+			switch(operation.opcode)
+			{
+				case task_type::train_one_batch:
+				{
+					// This seems not possible to be triggered.
+					break;
+				}
+				case task_type::update_lr:
+				{
+					break;
+
+				} 
+				case task_type::stop_train:
+				{
+					// This seems not possible to be triggered.
+					break;
+				}
+				case task_type::request_one_batch:
+				{
+					// Add request into primary upstream_queue.
+					// Wait for its task is ready.
+					break;
+				}
+				default: 
+				{
+
+				}
+			}
+			// Send a control message as response
+		}
+	};
+
 	template <typename trainer_type,
 			  typename data_type,
 			  typename label_type>
@@ -662,7 +717,6 @@ namespace dlib
 	{
 		std::vector<tt::multi_device_tensor_averager> averagers = std::vector<tt::multi_device_tensor_averager>(this->trainer->num_computational_layers);
 		std::vector<std::vector<resizable_tensor>> all_tensors;
-
 		auto breakdown = system_clock::now(); // *_*
 
 		this->send_parameters_to_slaves_paralized();
@@ -725,6 +779,123 @@ namespace dlib
 				this->dispatch_jobs(i, worker_job);
 
 				current_start = ((current_start + share * this->slaves_list[i].comp_ability >= all_end - 1 ? 0 : current_start + share * this->slaves_list[i].comp_ability));
+			}
+		}
+	};
+
+	template <typename trainer_type,
+			  typename data_type,
+			  typename label_type>
+	void dnn_leader<trainer_type, data_type, label_type>::endless_sync()
+	{
+		if (this->me.sync_type == device_sync_type::sync)
+		{
+
+			/* Sync */
+
+			while (1)
+			{
+
+				// Wait for all requests
+				task_op children_request_tasks[this->slaves_status.size()];
+				for (int i = 0; i < this->slaves_status.size(); i++)
+				{
+					children_request_tasks[i] = this->wait_for_task(this->slaves_conns[i]);
+				}
+
+				// Aggregate requests
+				int all_request_size = 0;
+				for (int i = 0; i < sizeof(children_request_tasks)/sizeof(task_op); i++)
+				{
+					if (children_request_tasks[i].opcode == 4)
+					{
+						all_request_size += children_request_tasks[i].reserved;
+					}
+				}
+				if (this->verbose)
+				{
+					std::cout << "[INFO] Node " << this->me.ip << ":" << this->me.port << " received " << all_request_size << " batchs request" << std::endl;
+				}
+
+				// Send combined requests
+				task_op request_to_parent_node_task;
+				request_to_parent_node_task.opcode = 4;
+				request_to_parent_node_task.reserved = all_request_size;
+				this->dispatch_jobs(-1, request_to_parent_node_task);
+
+				// Wait for parent's response
+				task_op response_from_parent_node_task = this->wait_for_task();
+				switch (response_from_parent_node_task.opcode)
+				{
+				case task_type::train_one_batch:
+				{
+					// Divide task for all children
+					unsigned long start = *(unsigned long *)&response_from_parent_node_task.operand1, end = *(unsigned long *)&response_from_parent_node_task.operand2;
+					if (this->verbose)
+					{
+						std::cout << start << "~" << end << std::endl;
+						std::cout << "diff:" << end - start << std::endl;
+					}
+
+					// Respond children
+					this->subdispatch(start, end);
+
+					// Recv stale_parameter
+					std::vector<resizable_tensor> latest_parameters;
+					this->receive_latest_parameters(latest_parameters);
+					std::vector<tensor *> temp(this->trainer->num_computational_layers);
+					for (size_t i = 0; i < temp.size(); i++)
+					{
+						temp[i] = &latest_parameters[i];
+					}
+					this->update(temp);
+
+					// Send stale_paramters
+					// Wait for children finishing training
+					// Notify children to send updated parameters
+					// Recv parameters
+					// Aggregate parameters
+					// Send parameter to parent
+					this->sync(); // This was supposed to point to sync_leader::sync which located at class dnn_leader, TODO
+				}
+				default:
+				{
+					// HPZ: TODO
+					std::cout << "Error op" << std::endl;
+					break;
+				}
+				}
+			}
+		}
+		else
+		{
+			// Async
+
+			while (1)
+			{
+				// Wait for requests
+
+				// Aggregate requests if needed
+
+				// Send combined requests
+
+				// Wait for parent's response
+
+				// Divide task for all children
+
+				// Respond children
+
+				// Send paramters
+
+				// Wait for children finishing training
+
+				// Notify children to send updated parameters
+
+				// Recv parameters
+
+				// Aggregate parameters
+
+				// Send parameter to parent
 			}
 		}
 	};

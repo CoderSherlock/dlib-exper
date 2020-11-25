@@ -52,6 +52,29 @@ public:
         return -1;
     };
 
+    device get_my_master(device me)
+    {
+        std::string ip = me.ip;
+        int port = me.port;
+        int my_leader_number = -1;
+        for (auto i = device_list.begin(); i != device_list.end(); ++i)
+        {
+            if (ip == i->ip && port == i->port)
+            {
+                my_leader_number = i->master;
+                break;
+            }
+        }
+        for (auto i = device_list.begin(); i != device_list.end(); ++i)
+        {
+            if (i->number == my_leader_number)
+            {
+                return *i;
+            }
+        }
+        return device();
+    };
+
     int read_config(char *config_path)
     {
         std::ifstream f;

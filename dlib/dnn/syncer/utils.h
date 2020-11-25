@@ -6,6 +6,7 @@
 #include <iostream>
 #include <list>
 #include <mutex>
+#include <arpa/inet.h>
 
 #define COMP_BUFFER_SIZE 4096
 #define SYNC_VERBOSE 0
@@ -13,6 +14,9 @@
 
 namespace dlib
 {
+	struct task_op;
+	struct msgheader;
+
 
 	enum device_role
 	{
@@ -151,6 +155,93 @@ namespace dlib
 	};
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+	struct message_elem
+	{
+		/*
+		*	leaders_local_primary_job is a the element to be stored in the following "queue" class.
+		*	
+		*	This structure is only being used for async-enabled node, stored only in local.
+		*	Please differentiate between this structure and task_op (a operation message strucure for network
+		*	transimission usage only)
+		*/
+	public:
+		msgheader *header; 
+		task_op *request_task;
+		std::vector<resizable_tensor> *tensors;
+
+		message_elem() = default;
+		message_elem &operator=(const message_elem &) = default;
+		message_elem(msgheader *header_,  task_op *request_task_, std::vector<resizable_tensor> *tensors_)
+		{
+			header = header_;
+			request_task = request_task_;
+			tensors = tensors_;
+		}
+
+		~message_elem() = default;
+	}; // End of class task
+
+	class local_msg_list
+	{
+		/*
+		*	Local_job_fifo_queue is a local FIFO queue for storing todo jobs.
+		*	
+		*
+		*/
+	public:
+		local_msg_list() = default;
+		local_msg_list(const local_msg_list &) = delete;
+		local_msg_list &operator=(const local_msg_list &) = delete;
+		~local_msg_list() = default;
+
+		void push_back(message_elem t)
+		{
+			lock();
+			queue.push_back(t);
+			unlock();
+		}
+
+		void pop_front()
+		{
+			lock();
+			if (!queue.empty())
+			{
+				queue.front().~message_elem();
+				queue.pop_front();
+			}
+			unlock();
+		}
+
+		message_elem* front()
+		{
+			lock();
+
+			if (!queue.empty())
+			{
+				unlock();
+				return &(queue.front());
+			}
+			unlock();
+			return NULL;
+		}
+
+		void lock()
+		{
+			while (queue_lock.trylock() == 0)
+				;
+		}
+
+		void unlock()
+		{
+			queue_lock.unlock();
+		}
+
+	private:
+		std::list<message_elem> queue;
+		mutex queue_lock;
+	};
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 	class queue_lock
 	{
 	public:
@@ -205,6 +296,8 @@ namespace dlib
 		const mutex lock;
 	};
 
+	
+
 	//////////////////////////
 	//						//
 	//	Local_job_queue		//
@@ -229,6 +322,41 @@ namespace dlib
 
 	namespace network
 	{
+		struct msgheader 
+		{
+			int dev_index;
+			in_addr_t ip;
+			int port;
+			int type;
+			int length;
+			int reserve;
+		};
+
+		void send_header(connection *dst, msgheader* header)
+		{
+			if (sizeof(header) != 24)
+			{
+				std::cout << "The task is not 24 bytes, it is " << sizeof(header) << std::endl;
+			}
+			dst->write((char *)&header->dev_index, 24);
+			dst->read(NULL, 1);
+		}
+
+		void recv_header(connection *src, msgheader* header)
+		{
+			char *headerbuffer = new char [24];
+			src->read(headerbuffer, 24);
+			header->dev_index = *((int *)headerbuffer);
+			header->ip = *((in_addr_t *)(headerbuffer + 4));
+			header->port = *((int *)(headerbuffer + 8));
+			header->type = *((int *)(headerbuffer + 12));
+			header->length = *((int *)(headerbuffer + 16));
+			header->reserve = *((int *)(headerbuffer + 20));
+			src->write(" ", 1);
+
+			delete[] headerbuffer;
+		}
+
 		int send_a_task(connection *dst, task_op task)
 		{
 			if (sizeof(task) != 24)
@@ -252,6 +380,23 @@ namespace dlib
 
 			delete[] task_message;
 		}
+
+		connection* create_message_session(std::string dst_ip, int port, std::string src_ip)
+		{
+			connection *dialog_session;
+			if (create_connection(dialog_session, port, dst_ip, (unsigned short)0, src_ip))
+			{
+				std::cerr << "Create failed on " << dst_ip << ":" << port << std::endl;
+				return NULL;
+			}
+			return dialog_session;
+		}
+
+		void halt_message_session(connection* conn)
+		{
+			close_gracefully(conn, 500);
+		}
+
 		// Wait for an acknowledgement from the connection
 		void wait_ack(connection *src)
 		{

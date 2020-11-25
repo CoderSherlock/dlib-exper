@@ -128,7 +128,7 @@ namespace dlib
 	template <typename trainer_type,
 			  typename data_type,
 			  typename label_type>
-	int dnn_worker<trainer_type, data_type, label_type>::do_one_task_asap()
+	int dnn_worker<trainer_type, data_type, label_type>::do_one_task_without_wait()
 	{
 		// TODO: check if trainer is busy, if then wait until it become idle.
 
@@ -138,13 +138,28 @@ namespace dlib
 		auto batch_time = system_clock::now(); // *_* Time for the training
 		auto breakdown = system_clock::now();  // *_* Breakdown time for training procedure
 
-		request.opcode = 4;	  // Request batch opcode
-		request.reserved = 1; // Request only one batch
+		request.opcode = task_type::request_one_batch;	// Request batch opcode
+		request.reserved = 1; 							// Request only one batch
 		request.operand1 = 0; // Not used
 		request.operand2 = 0; // Not used
 
-		network::send_a_task(this->master_conn, request); // Send a batch request
-		response = this->wait_for_task();				  // Recv a response of training batch details
+		network::msgheader header;
+		header.dev_index = this->me.number;
+		inet_pton(AF_INET, this->me.ip.c_str(), &(header.ip));
+		header.port = this->me.port;
+		header.type = task_type::train_one_batch;
+		header.length = 24;
+		try {
+			connection* session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+			network::send_header(session, &header); 			// Send a batch request
+			network::send_a_task(session, request);
+			network::halt_message_session(session);
+		} catch (std::exception e) {
+			
+		}
+
+		// Wait the response from its leader
+		
 
 		switch (response.opcode)
 		{

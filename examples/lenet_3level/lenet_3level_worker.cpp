@@ -54,6 +54,7 @@ int main(int argc, char **argv) try
 	me.ip = argv[1];
 	me.port = atoi(argv[2]);
 	me.number = atoi(argv[3]);
+	me.sync_type = device_sync_type::sync;	// Default as sync
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	/* Print self information *///////////////////////////////////////////////////////////
@@ -77,7 +78,8 @@ int main(int argc, char **argv) try
 	distributed_trainer_config.read_config(config_path);																				//
 																																		//
 	int role = distributed_trainer_config.get_role(me.ip, me.port);																		//
-	me.number = distributed_trainer_config.get_number(me.ip, me.port);																	//
+	me.number = distributed_trainer_config.get_number(me.ip, me.port);
+	master = distributed_trainer_config.get_my_master(me);																	//
 																																		//
 	// Validating current node's role -> worker or leader or supleader?																	//
 	std::cout << "I'm a " << (role == 0 ? "worker" : (role == 1 ? "leader" : (role == 2 ? "supleader" : "undecided"))) << std::endl;	//
@@ -147,19 +149,20 @@ int main(int argc, char **argv) try
 
 	if (role == device_role::worker)
 	{
-		dnn_worker<trainer_type, matrix<unsigned char>, unsigned long> syncer(&trainer);
-
-		syncer.set_this_device(me);
-		syncer.set_role(role);
-
-		trainer.isDistributed = 1;
-		syncer.init_trainer(training);
-
+		dnn_worker<trainer_type, matrix<unsigned char>, unsigned long> worker(&trainer);
 		int finished_batch = 0;
+
+		worker.set_this_device(me);
+		worker.set_role(role);
+		worker.set_master_device(master);
+
+		worker.trainer->isDistributed = 1;
+		worker.init_thread_pool();
+		worker.init_trainer(training);
 
 		while (true)
 		{
-			int do_task_status = syncer.do_one_task_asap();
+			int do_task_status = worker.do_one_task_without_wait();
 			if(do_task_status == -1)		// Recv an error task -> very likely to be a stop training signal 
 				break;
 			else if (do_task_status == 1){
@@ -187,168 +190,68 @@ int main(int argc, char **argv) try
 	}
 	else if (role == device_role::leader)
 	{
-		dnn_leader<trainer_type, matrix<unsigned char>, unsigned long> syncer(&trainer, 0);
-		syncer.set_this_device(me);
-		syncer.set_role(role);
-		syncer.exper = 1;
+		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, 0);
+		leader.set_this_device(me);
+		leader.set_role(role);
+		leader.exper = 1;
 
 		for (int i = 0; i < slave_list.size(); i++)
 		{
-			syncer.add_slave(slave_list[i]);
+			leader.add_slave(slave_list[i]);
 		}
 
-		trainer.isDistributed = 1;
-
-		while (trainer.ready_status < 1)
-		{
-		};
-		std::cout << 0 << std::endl;
-
-		trainer.train_one_batch(training.getData(), training.getLabel());
-		std::cout << 1 << std::endl;
-
-		trainer.distributed_signal.get_mutex().lock();
-		trainer.ready_status = 2;
-		std::cout << 2 << std::endl;
-
-		trainer.status_lock.unlock();
-		trainer.distributed_signal.signal();
-		std::cout << 3 << std::endl;
-
-		while (trainer.ready_status < 4)
-		{
-		};
-
-		std::cout << "Finish initialization training, it takes " << 0 << " seconds" << std::endl;
-
-		sleep((unsigned int)5);
-
-		syncer.init_slaves();
-
+		leader.trainer->isDistributed = 1;
+		leader.init_trainer(training);
+		leader.init_thread_pool();
+		
+		// sleep((unsigned int)5);
+		leader.init_slaves();
 		std::cout << "Finished Initialization, now start training procedures" << std::endl;
-		syncer.print_slaves_status();
-		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
+		leader.print_slaves_status();
+		std::cout << "Now we have " << leader.get_running_slaves_num() << " slaves" << std::endl;
 
-		syncer.wait_for_master_init();
-
+		// if (!leader.wait_for_master_init())											// Wait for parent to init, TODO: Not necessary to be after this function finished.
+		// {
+		// 	std::cerr << "Error happens when master send init message" << std::endl;
+		// 	exit(0);
+		// }
 		std::cout << "Connected by master" << std::endl;
 
-		// sleep((unsigned int)3600);
-
-		int epoch = 0, batch = 0;
-
-		while (true)
-		{
-			task_op operation = syncer.wait_for_task();
-
-			switch (operation.opcode)
-			{
-			case task_type::train_one_batch:
-			{
-				unsigned long start = *(unsigned long *)&operation.operand1, end = *(unsigned long *)&operation.operand2;
-				std::cout << start << "~" << end << std::endl;
-				std::cout << "diff:" << end - start << std::endl;
-
-				// HPZ: Sync lateset parameters
-				std::vector<resizable_tensor> latest_parameters;
-				syncer.receive_latest_parameters(latest_parameters);
-
-				std::vector<tensor *> temp(syncer.trainer->num_computational_layers);
-				for (size_t i = 0; i < temp.size(); i++)
-				{
-					// TODO : Deal with 0
-					temp[i] = &latest_parameters[i];
-				}
-				syncer.update(temp);
-
-				// TODO: Dispatch jobs
-				syncer.subdispatch(start, end);
-
-				syncer.sync();
-
-				std::cout << "Learning rate is " << trainer.learning_rate << std::endl;
-				break;
-			}
-			default:
-			{
-				// HPZ: TODO
-				std::cout << "Error op" << std::endl;
-				epoch = 99999;
-			}
-			}
-
-			if (trainer.learning_rate <= 0.001)
-			{
-				std::cout << "---------------------------" << std::endl;
-				std::cout << "|Exit because l_rate      |" << std::endl;
-				std::cout << "---------------------------" << std::endl;
-				break;
-			}
-
-			if (epoch >= 5000)
-			{
-				std::cout << "---------------------------" << std::endl;
-				std::cout << "|Exit because 30 epochs   |" << std::endl;
-				std::cout << "---------------------------" << std::endl;
-				break;
-			}
-		}
+		leader.endless_sync();
 	}
 	else if (role == device_role::supleader)
 	{
-		dnn_async_leader<trainer_type, matrix<unsigned char>, unsigned long> syncer(&trainer, 0);
-		syncer.set_this_device(me);
-		syncer.set_role(role);
-		syncer.exper = 1;
+		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, 0);
+		leader.set_this_device(me);
+		leader.set_role(role);
+		leader.exper = 1;
 
 		for (int i = 0; i < slave_list.size(); i++)
 		{
-			syncer.add_slave(slave_list[i]);
+			leader.add_slave(slave_list[i]);
 		}
 
 		trainer.isDistributed = 1;
-
-		while (trainer.ready_status < 1)
-		{
-		};
-		std::cout << 0 << std::endl;
-
-		trainer.train_one_batch(training.getData(), training.getLabel());
-		std::cout << 1 << std::endl;
-
-		trainer.distributed_signal.get_mutex().lock();
-		trainer.ready_status = 2;
-		std::cout << 2 << std::endl;
-
-		trainer.status_lock.unlock();
-		trainer.distributed_signal.signal();
-		std::cout << 3 << std::endl;
-
-		while (trainer.ready_status < 4)
-		{
-		};
+		leader.default_dataset = &training;
+		leader.init_trainer();
+		leader.init_thread_pool();
 
 		std::cout << "Finish initialization training, it takes " << 0 << " seconds" << std::endl;
 
-		sleep((unsigned int)10);
-
-		syncer.init_slaves();
-		syncer.init_receiver_pool();
+		// leader.init_slaves();
+		// leader.init_receiver_pool();
 
 		std::cout << "Finished Initialization, now start training procedures" << std::endl;
-		syncer.print_slaves_status();
-		std::cout << "Now we have " << syncer.get_running_slaves_num() << " slaves" << std::endl;
-
-		// sleep((unsigned int)3600);
 
 		auto real_time = system_clock::now();
 		auto print_time = 0;
-		syncer.ending_time = distributed_trainer_config.ending_epoch;
-		std::cout << syncer.ending_time << std::endl;
+		leader.ending_time = distributed_trainer_config.ending_epoch;
+		std::cout << "Training is set to be finished after " << leader.ending_time << " epochs" << std::endl;
 
 		dataset<matrix<unsigned char>, unsigned long> testing = training;
 
-		syncer.sync((unsigned long)training.getData().size(), &testing);
+		while(1) { }
+		// leader.sync(&testing);
 		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
 		std::cout << "All time: " << print_time << std::endl;
 	}
