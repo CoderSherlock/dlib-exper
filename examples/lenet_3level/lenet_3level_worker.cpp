@@ -54,7 +54,7 @@ int main(int argc, char **argv) try
 	me.ip = argv[1];
 	me.port = atoi(argv[2]);
 	me.number = atoi(argv[3]);
-	me.sync_type = device_sync_type::sync;	// Default as sync
+	me.sync_type = device_sync_type::async;	// Default as sync
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	/* Print self information *///////////////////////////////////////////////////////////
@@ -77,12 +77,12 @@ int main(int argc, char **argv) try
 	/* Fetch distributed-learning-system's configuration *////////////////////////////////////////////////////////////////////////////////
 	distributed_trainer_config.read_config(config_path);																				//
 																																		//
-	int role = distributed_trainer_config.get_role(me.ip, me.port);																		//
+	device_role role = distributed_trainer_config.get_role(me.ip, me.port);																		//
 	me.number = distributed_trainer_config.get_number(me.ip, me.port);
 	master = distributed_trainer_config.get_my_master(me);																	//
 																																		//
 	// Validating current node's role -> worker or leader or supleader?																	//
-	std::cout << "I'm a " << (role == 0 ? "worker" : (role == 1 ? "leader" : (role == 2 ? "supleader" : "undecided"))) << std::endl;	//
+	std::cout << "I'm a " << (role == device_role::worker ? "worker" : (role == device_role::leader ? "leader" : (role == device_role::supleader ? "supleader" : "undecided"))) << std::endl;	//
 																																		//
 	// Get slaves																														//
 	for (auto i = distributed_trainer_config.device_list.begin(); i != distributed_trainer_config.device_list.end(); ++i)				//
@@ -157,6 +157,7 @@ int main(int argc, char **argv) try
 		worker.set_master_device(master);
 
 		worker.trainer->isDistributed = 1;
+		worker.default_dataset = &training;
 		worker.init_thread_pool();
 		worker.init_trainer(training);
 
@@ -190,7 +191,7 @@ int main(int argc, char **argv) try
 	}
 	else if (role == device_role::leader)
 	{
-		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, 0);
+		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
 		leader.set_this_device(me);
 		leader.set_role(role);
 		leader.exper = 1;
@@ -201,6 +202,7 @@ int main(int argc, char **argv) try
 		}
 
 		leader.trainer->isDistributed = 1;
+		leader.default_dataset = &training;
 		leader.init_trainer(training);
 		leader.init_thread_pool();
 		
@@ -221,7 +223,7 @@ int main(int argc, char **argv) try
 	}
 	else if (role == device_role::supleader)
 	{
-		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, 0);
+		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
 		leader.set_this_device(me);
 		leader.set_role(role);
 		leader.exper = 1;

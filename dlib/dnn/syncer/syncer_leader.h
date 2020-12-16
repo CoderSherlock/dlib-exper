@@ -1,5 +1,5 @@
-#ifndef DLIB_DNn_SYNCER_LEADER_DEFAULT_H_
-#define DLIB_DNn_SYNCER_LEADER_DEFAULT_H_
+#ifndef DLIB_DNn_SYNCER_LEADER_H_
+#define DLIB_DNn_SYNCER_LEADER_H_
 
 #include "syncer.h"
 
@@ -7,39 +7,6 @@ using std::chrono::system_clock;
 
 namespace dlib
 {
-
-	/*
- *	Leader Manage functions, by PZH
- *
- *  set_role(int)
- */
-
-	template <typename trainer_type,
-			  typename data_type,
-			  typename label_type>
-	void dnn_syncer<trainer_type, data_type, label_type>::set_role(int role)
-	{
-		this->role = role;
-	}
-
-	template <typename trainer_type,
-			  typename data_type,
-			  typename label_type>
-	void dnn_syncer<trainer_type, data_type, label_type>::set_this_device(device me_)
-	{
-		this->me = me_;
-		// this->listener_thread_ptr = new std::thread(&dnn_syncer::listen_thread, this);
-	}
-
-	template <typename trainer_type,
-			  typename data_type,
-			  typename label_type>
-	void dnn_syncer<trainer_type, data_type, label_type>::set_master_device(device master_)
-	{
-		this->master = master_;
-		// this->listener_thread_ptr = new std::thread(&dnn_syncer::listen_thread, this);
-	}
-
 	/*
  *	Print out all slaves' status, including(ip, port, connection pointer and connection status)
  *	void(*)
@@ -76,30 +43,7 @@ namespace dlib
 		return ret;
 	}
 
-	template <typename trainer_type,
-			  typename data_type,
-			  typename label_type>
-	void dnn_syncer<trainer_type, data_type, label_type>::update(std::vector<tensor *> &updated)
-	{
-		std::vector<tensor *> old_tensors;
-		old_tensors.resize(this->trainer->num_computational_layers);
-
-		visit_layer_parameters(trainer->devices[0]->net, [&](size_t i, tensor &t) {
-			old_tensors[i] = &t;
-		});
-
-		for (size_t i = 0; i < old_tensors.size(); i++)
-		{
-			if (old_tensors[i]->size() != 0)
-			{
-				for (auto j = old_tensors[i]->begin(), k = updated[i]->begin(); j != old_tensors[i]->end(); j++, k++)
-				{
-					*j = *k;
-				}
-			}
-		}
-	}
-
+	
 	/*==================================================================================
  *	Leader Manage functions, by PZH
  *
@@ -193,7 +137,7 @@ namespace dlib
 
 		for (int i = 0; i < this->slaves_list.size(); i++)
 		{
-			this->slaves_conns[i].shutdown();
+			this->slaves_conns[i]->shutdown();
 			delete this->slaves_conns[i];
 
 			this->slaves_status[i] = slaveStatus::NotConn;
@@ -232,7 +176,7 @@ namespace dlib
 	template <typename trainer_type,
 			  typename data_type,
 			  typename label_type>
-	void dnn_leader<trainer_type, data_type, label_type>::send_parameters_to_slaves_serialised()
+	void dnn_leader<trainer_type, data_type, label_type>::send_parameters_to_slaves_serialized()
 	{
 		if (this->get_running_slaves_num() != 0)
 		{
@@ -422,7 +366,7 @@ namespace dlib
 					// This seems not possible to be triggered.
 					break;
 				}
-				case task_type::update_lr:
+				case task_type::send_trained_parameter:
 				{
 					break;
 
@@ -842,7 +786,7 @@ namespace dlib
 
 					// Recv stale_parameter
 					std::vector<resizable_tensor> latest_parameters;
-					this->receive_latest_parameters(latest_parameters);
+					this->receive_latest_parameters(this->master_conn, latest_parameters);
 					std::vector<tensor *> temp(this->trainer->num_computational_layers);
 					for (size_t i = 0; i < temp.size(); i++)
 					{

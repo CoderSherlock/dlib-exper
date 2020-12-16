@@ -46,13 +46,17 @@ namespace dlib
 		trainer_type *trainer;
 		dataset<data_type, label_type> *default_dataset;
 
-		int role = device_role::undecided;
+		device_role role = device_role::undecided;
 		device me;
 		device master;
-		std::thread *listener_thread_ptr = NULL;
-		mutex *listener_working_lock = NULL;
+
+		
 		connection *master_conn = NULL;
-		local_msg_list* incoming_message = NULL;
+
+		std::thread *listener_thread_ptr = NULL;
+		mutex *worker_thread_lock = NULL;
+		std::list<std::thread *> worker_threads;
+		local_msg_list *incoming_message = NULL;
 
 		int verbose = 1;
 		int num_debug = 0;
@@ -63,264 +67,46 @@ namespace dlib
 		dnn_syncer(const dnn_syncer &) = default;
 		dnn_syncer &operator=(const dnn_syncer &) = default;
 
-		[[deprecated("Please use dnn_leader/dnn_full_leader or dnn_worker instead of dnn_syncer.")]] dnn_syncer(int role)
-		{
-			this->role = role;
-		}
-
-		[[deprecated("Please use dnn_leader/dnn_full_leader or dnn_worker instead of dnn_syncer.")]] dnn_syncer(trainer_type *trainer, int role)
-		{
-			this->trainer = trainer;
-			this->role = role;
-		}
+		[[deprecated("Please use dnn_leader/dnn_full_leader or dnn_worker instead of dnn_syncer.")]] 
+		dnn_syncer(device_role role);
+		[[deprecated("Please use dnn_leader/dnn_full_leader or dnn_worker instead of dnn_syncer.")]] 
+		dnn_syncer(trainer_type *trainer, device_role role);
 
 		~dnn_syncer() = default;
 
-		void set_role(int);
-
+		void set_role(device_role);
 		void set_this_device(device);
-
 		void set_master_device(device);
 
+		[[deprecated("Temp removed and replaced by listen thread for server mode")]]
+		int wait_for_master_init();
 
+		void init_thread_pool();
+		void listener_thread();
+		void listener_worker_thread(connection *conn);
 
-		[[deprecated("Temp removed and replaced by listen thread for server mode")]] int wait_for_master_init()
-		{
-			DLIB_CASSERT(this->role != device_role::supleader, "Super leader deivce doesn't need to wait for being initialized.");
-
-			listener *lt;
-
-			if (create_listener(lt, me.port, me.ip))
-			{
-				std::cerr << "Unable to create a listener" << std::endl;
-				return 0;
-			}
-
-			connection *master_conn;
-
-			if (!lt->accept(master_conn))
-			{
-				char master_msg[30];
-				master_conn->read(master_msg, 30);
-				char reply_msg[30];
-				snprintf(reply_msg, sizeof(reply_msg), "%s:%d\n", &me.ip[0], me.port);
-				master_conn->write(reply_msg, 30);
-
-				std::cout << "Connected by " << master_msg << std::endl;
-				this->master_conn = master_conn;
-				return 1;
-			}
-
-			return 0;
-		}
-
-		void init_thread_pool()
-		{
-			this->incoming_message = new local_msg_list();
-			// Listener thread
-			this->listener_working_lock = new mutex();
-			this->listener_thread_ptr = new std::thread(&dnn_syncer::listener_thread, this);
-		}
-
-		void listener_thread()
-		{
-			listener *lt;
-			if (create_listener(lt, me.port, me.ip))
-			{
-				std::cerr << "Unable to create a listener" << std::endl;
-			}
-
-			while (true)
-			{
-				connection *src;
-				network::msgheader header;
-
-				lt->accept(src);
-				network::recv_header(src, &header);
-
-				char src_ip_str[INET_ADDRSTRLEN];
-				inet_ntop(AF_INET, &(header.ip), src_ip_str, INET_ADDRSTRLEN);
-
-				std::cout << "Message from " << src_ip_str << ":" << header.port << std::endl;
-				task_op *task = new task_op();
-				network::recv_a_task(src, task);
-			}
-		}
-
-		void listener_worker_thread()
-		{
-			
-		}
-
-		void average(std::vector<std::vector<resizable_tensor>> &all_tensors)
-		{
-			std::vector<std::vector<tensor *>> accessible_groups;
-			float scale = 1.0 / all_tensors.size();
-
-			for (size_t i = 0; i < this->trainer->num_computational_layers; i++)
-			{
-				std::vector<tensor *> group;
-
-				for (size_t j = 0; j < all_tensors.size(); j++)
-				{
-					if (all_tensors[j][i].size() != 0)
-					{
-						group.push_back(&all_tensors[j][i]);
-						// std::cout << &all_tensors[j][i] << std::endl;
-					}
-				}
-
-				if (group.size() == 0)
-					continue;
-
-				if (group.size() == 1)
-					tt::affine_transform(*group[0], *group[0], scale);
-				else
-					tt::affine_transform(*group[0], *group[0], *group[1], scale, scale);
-
-				for (size_t i = 2; i < group.size(); ++i)
-					tt::affine_transform(*group[0], *group[0], *group[i], 1, scale);
-			}
-		}
-
-		void average_ptr(std::vector<std::vector<tensor *>> &all_tensors)
-		{
-			if (all_tensors.size() < 1)
-			{
-				return;
-			}
-			std::vector<std::vector<tensor *>> accessible_groups;
-			float scale = 1.0 / all_tensors.size();
-
-			for (size_t i = 0; i < all_tensors[0].size(); i++)
-			{
-				std::vector<tensor *> group;
-
-				for (size_t j = 0; j < all_tensors.size(); j++)
-				{
-					group.push_back(all_tensors[j][i]);
-				}
-
-				if (group.size() == 0)
-					continue;
-
-				if (group.size() == 1)
-					tt::affine_transform(*group[0], *group[0], scale);
-				else
-					tt::affine_transform(*group[0], *group[0], *group[1], scale, scale);
-
-				for (size_t i = 2; i < group.size(); ++i)
-					tt::affine_transform(*group[0], *group[0], *group[i], 1, scale);
-			}
-		}
+		void average(std::vector<std::vector<resizable_tensor>> &all_tensors);
+		void average_ptr(std::vector<std::vector<tensor *>> &all_tensors);
 
 		void update(std::vector<tensor *> &updated);
 
-		task_op request_a_task(task_op req)
-		{
-			return request_a_task(NULL, req);
-		}
+		task_op request_a_task(task_op req);
+		void request_a_task(connection *src_conn, task_op req);
+		task_op wait_for_task();
+		task_op wait_for_task(connection *src_conn);
 
-		void request_a_task(connection *src_conn, task_op req)
-		{
-			if (src_conn == NULL)
-				network::send_a_task(this->master_conn, req);
-			else
-				network::send_a_task(src_conn, req);
-		}
+		void receive_latest_parameters(connection* src, std::vector<resizable_tensor> &updated);
+		void notify_train_finish();
+		void notify_send_begin(connection *conn);
+		void wait_finishing(connection *conn);
+		void wait_to_send();
 
-		task_op wait_for_task()
-		{
-			return wait_for_task(NULL);
-		}
+		void init_trainer(); // Initial trainer before start to request tasks, runs once when at beginning of the bootup.
+		void init_trainer(dataset<data_type, label_type> training); // Initial trainer before start to request tasks, runs once when at beginning of the bootup.
 
-		task_op wait_for_task(connection *src_conn)
-		{
-			task_op ret;
-			if (src_conn == NULL)
-				network::recv_a_task(this->master_conn, &ret);
-			else
-				network::recv_a_task(src_conn, &ret);
-
-			return ret;
-		}
-
-		void receive_latest_parameters(std::vector<resizable_tensor> &updated)
-		{
-			// Initialize
-			std::vector<tensor *> tensors;
-			tensors.resize(this->trainer->num_computational_layers);
-			visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
-				tensors[i] = &t;
-			});
-
-			updated.resize(this->trainer->num_computational_layers);
-
-			for (size_t i = 0; i < updated.size(); i++)
-			{
-				updated[i].copy_size(*tensors[i]);
-			}
-
-			for (size_t i = 0; i < updated.size(); i++)
-			{
-				if (updated[i].size() != 0)
-					network::receive_compressed_tensor(this->master_conn, &updated[i]);
-			}
-		};
-
-		void notify_train_finish()
-		{
-			char *msg = new char[1];
-			this->master_conn->write(msg, 1);
-		};
-
-		void notify_send_begin(connection *conn)
-		{
-			char *msg = new char[1];
-			conn->write(msg, 1);
-		};
-
-		void wait_finishing(connection *conn)
-		{
-			char *msg = new char[1];
-			conn->read(msg, 1);
-		};
-
-		void wait_to_send()
-		{
-			char *msg = new char[1];
-			this->master_conn->read(msg, 1);
-		};
-
-		void init_trainer() // Initial trainer before start to request tasks, runs once when at beginning of the bootup.
-		{
-			this->init_trainer(*(this->default_dataset));
-		};
-
-		void init_trainer(dataset<data_type, label_type> training) // Initial trainer before start to request tasks, runs once when at beginning of the bootup.
-		{
-			while (trainer->ready_status < 1) // Wait for trainer get ready.
-			{
-			};
-
-			this->trainer->train_one_batch(training.getData(), training.getLabel()); // Give trainer one batch for allocate space of parameters and gradients
-
-			this->trainer->distributed_signal.get_mutex().lock(); // Notify trainer start to train
-			this->trainer->ready_status = 2;
-			this->trainer->status_lock.unlock();
-			this->trainer->distributed_signal.signal();
-
-			while (trainer->ready_status < 4) // Wait until trainer finished training
-			{
-			};
-		};
 
 		// TODO
-		dnn_syncer &operator<<(std::ostream &out)
-		{
-			out << trainer << std::endl;
-			out << role << std::endl;
-		}
+		std::ostream operator<<(std::ostream &out);
 	};
 
 	template <typename trainer_type,
@@ -363,7 +149,7 @@ namespace dlib
 		int get_running_slaves_num(); // Get number of how many slaves are in running.
 
 		void send_parameters(connection *slave);	 // Send leader's trainer's parameter (in-memory) directly to the connection
-		void send_parameters_to_slaves_serialised(); // Send to all children in serialized using above function
+		void send_parameters_to_slaves_serialized(); // Send to all children in serialized using above function
 		void send_parameters_to_slaves_paralized();	 // Send to all children in paralized, same as up
 
 		void init_before_receiving(std::vector<std::vector<resizable_tensor>> &all_tensors);					  // Allocate space exactly size for each child it has before recv from them
@@ -402,22 +188,26 @@ namespace dlib
 		dnn_full_leader() = default;
 		dnn_full_leader(const dnn_full_leader &) = default;
 		dnn_full_leader &operator=(const dnn_full_leader &) = default;
-		dnn_full_leader(int role)
+		dnn_full_leader(device_role role)
 		{
 			this->role = role;
 		}
 
-		dnn_full_leader(trainer_type *trainer, int role)
+		dnn_full_leader(trainer_type *trainer, device_role role)
 		{
 			this->trainer = trainer;
 			this->role = role;
 		}
 
-		void init_receiver_pool();																	 // Initialize all async working thread and all member variables defined below
-		int receive_gradients_from_one(int slave_index, std::vector<resizable_tensor> &cli_tensors); // Recv parameters from a specified slave
-		void send_parameters(int slave_index, std::vector<resizable_tensor> &parameters);			 // Send parameters to the specified slave, similar to the above function
-		void subsync(unsigned long);																 // ONGOING: prototype of configurable middle-layer node
-		void sync(dataset<matrix<unsigned char>, unsigned long> *testing);							 // Async-based top leader, endless loop until finishing amount of epochs or reaching an accuracy level of passed-in dataset
+		void init_receiver_pool();																	 	// Initialize all async working thread and all member variables defined below
+		int receive_gradients_from_device(connection *src, std::vector<resizable_tensor> &cli_tensors); // Recv parameters from a specified slave
+		void send_parameters(int slave_index, std::vector<resizable_tensor> &parameters);			 	// Send parameters to the specified slave, similar to the above function
+		void subsync(unsigned long);																 	// ONGOING: prototype of configurable middle-layer node
+		void sync(dataset<matrix<unsigned char>, unsigned long> *testing);							 	// Async-based top leader, endless loop until finishing amount of epochs or reaching an accuracy level of passed-in dataset
+
+		void init_thread_pool();
+		void listener_thread();
+		void listener_worker_thread(connection *conn);
 
 	private:
 		void async_thread(int); // Working thread function for each child
@@ -429,7 +219,6 @@ namespace dlib
 		signaler **job_signal;									 // Signaler to sync status between main thread and async_threads
 		mutex **job_signal_mutex;								 // Mutex used by above signaler
 		bool *signal_status;									 // To indicate ready if main thread has a fast pace than receiver thread which has not set signal wait yet
-		local_job_fffo_queue tq;								 // A queue to organize all on-going tasks, not FIFO but First-IN-First-ready-OUT
 	};
 
 	template <typename trainer_type,
@@ -449,13 +238,15 @@ namespace dlib
 			this->trainer = trainer;
 		}
 
-		void send_gradients_to_master();  // Send gradients to its parent node
-		void send_parameters_to_master(); // Send parameters to its parent node
+		void send_gradients_to_master();  					// Send gradients to its parent node
+		void send_parameters_to_master(); 					// Send parameters to its parent node
+		void send_parameters_to_device(connection *dst); 	// Send parameters to customized destination device
+		
+		void recv_and_update_parameters(connection* src); 	// Receive paramters.
+		void starting_pistol();								// Let trainer start.
 
-		void pre_train(task_op operation); // Receive paramters from parent node and setup training prerequesties.
-
-		int do_one_task_with_wait(void); 		// TODO
-		int do_one_task_without_wait(void);		// TODO
+		int do_one_task_with_wait(void);	// TODO
+		int do_one_task_without_wait(void); // TODO
 	};
 
 } // End of Namespace dlib

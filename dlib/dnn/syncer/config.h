@@ -16,7 +16,7 @@ public:
     std::list<device> device_list;
     int ending_epoch;
 
-    int get_role(std::string ip, int port)
+    device_role get_role(std::string ip, int port)
     {
         for (auto i = device_list.begin(); i != device_list.end(); ++i)
         {
@@ -25,10 +25,10 @@ public:
                 return i->role;
             }
         }
-        return -1;
+        return device_role::undecided;
     };
 
-    int get_role(int number)
+    device_role get_role(int number)
     {
         for (auto i = device_list.begin(); i != device_list.end(); ++i)
         {
@@ -37,7 +37,7 @@ public:
                 return i->role;
             }
         }
-        return -1;
+        return device_role::undecided;
     };
 
     int get_number(std::string ip, int port)
@@ -102,7 +102,7 @@ public:
         while (device_lines--)
         {
             f >> number >> ip >> port >> role >> master;
-            device temp(number, ip, port, role, master, 0, device_sync_type(1));
+            device temp(number, ip, port, device_role(role), master, 0, device_sync_type(1));
             device_list.push_back(temp);
         }
 

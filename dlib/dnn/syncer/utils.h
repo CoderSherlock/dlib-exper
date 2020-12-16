@@ -15,21 +15,28 @@
 namespace dlib
 {
 	struct task_op;
-	struct msgheader;
+	namespace network {
+		struct msgheader;
+	}
 
 
-	enum device_role
+	enum class device_role
 	{
 		worker = 0,
 		leader = 1,
 		supleader = 2,
-		undecided = -1
+		undecided = -1		
 	};
 
-	enum device_sync_type
+	bool operator!=(device_role a, device_role b){
+		return !(a == b);
+	}
+
+	enum class device_sync_type
 	{
 		sync = 0,
-		async = 1
+		async = 1,
+		undecided = -1
 	};
 
 	struct device
@@ -37,10 +44,10 @@ namespace dlib
 		int number = -1;
 		std::string ip;
 		int port = 2333;
-		int role = device_role::undecided;
+		device_role role = device_role::undecided;
 		int master = -1;
 		int comp_ability = 1;
-		device_sync_type sync_type;
+		device_sync_type sync_type = device_sync_type::sync;
 
 		device() {}
 
@@ -48,7 +55,7 @@ namespace dlib
 			: number(number_), ip(ip_), port(port_)
 		{
 		}
-		device(int number_, std::string ip_, int port_, int role_, int master_, int comp_, device_sync_type stype_)
+		device(int number_, std::string ip_, int port_, device_role role_, int master_, int comp_, device_sync_type stype_)
 			: number(number_), ip(ip_), port(port_), role(role_), master(master_), comp_ability(comp_), sync_type(stype_)
 		{
 		}
@@ -154,7 +161,7 @@ namespace dlib
 		mutex queue_lock;
 	};
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+	
 	struct message_elem
 	{
 		/*
@@ -165,16 +172,16 @@ namespace dlib
 		*	transimission usage only)
 		*/
 	public:
-		msgheader *header; 
-		task_op *request_task;
+		network::msgheader *header; 
+		task_op *task;
 		std::vector<resizable_tensor> *tensors;
 
 		message_elem() = default;
 		message_elem &operator=(const message_elem &) = default;
-		message_elem(msgheader *header_,  task_op *request_task_, std::vector<resizable_tensor> *tensors_)
+		message_elem(network::msgheader *header_,  task_op *task_, std::vector<resizable_tensor> *tensors_)
 		{
 			header = header_;
-			request_task = request_task_;
+			task = task_;
 			tensors = tensors_;
 		}
 
@@ -225,6 +232,11 @@ namespace dlib
 			return NULL;
 		}
 
+		bool empty()
+		{
+			return queue.empty();
+		}
+
 		void lock()
 		{
 			while (queue_lock.trylock() == 0)
@@ -237,6 +249,7 @@ namespace dlib
 		}
 
 	private:
+		unsigned int imid_counter = 0;
 		std::list<message_elem> queue;
 		mutex queue_lock;
 	};
@@ -305,10 +318,18 @@ namespace dlib
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	enum task_type
 	{
-		train_one_batch = 1,
-		update_lr = 2,
-		stop_train = 3,
-		request_one_batch = 4
+		request_one_batch = 1,
+		train_one_batch = 2,
+
+		request_updated_parameter = 3,
+		response_most_updated_parameter = 4,
+
+		send_trained_parameter = 5,
+		recv_trained_parameter = 6,
+
+		send_trained_gradients = 7,
+		
+		stop_train = 8
 	};
 
 	struct task_op
@@ -330,16 +351,15 @@ namespace dlib
 			int type;
 			int length;
 			int reserve;
+
+			msgheader() = default;
+			msgheader &operator=(const msgheader &) = default;
 		};
 
 		void send_header(connection *dst, msgheader* header)
 		{
-			if (sizeof(header) != 24)
-			{
-				std::cout << "The task is not 24 bytes, it is " << sizeof(header) << std::endl;
-			}
 			dst->write((char *)&header->dev_index, 24);
-			dst->read(NULL, 1);
+			// dst->read(NULL, 1);
 		}
 
 		void recv_header(connection *src, msgheader* header)
@@ -352,7 +372,7 @@ namespace dlib
 			header->type = *((int *)(headerbuffer + 12));
 			header->length = *((int *)(headerbuffer + 16));
 			header->reserve = *((int *)(headerbuffer + 20));
-			src->write(" ", 1);
+			// src->write(" ", 1);
 
 			delete[] headerbuffer;
 		}
