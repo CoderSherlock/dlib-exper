@@ -341,6 +341,18 @@ namespace dlib
 	};
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+	unsigned long long int current_time_in_nanosec()
+	{
+		struct timeval tv;
+    	gettimeofday(&tv, NULL);
+		return ((unsigned long long int)tv.tv_sec * 1000000 + tv.tv_usec);
+	}
+
+	void logger(int number, std::string msg)
+	{
+		std::cout << "[log]," << number << "," << current_time_in_nanosec() << "," << msg << std::endl; 
+	}
+
 	namespace network
 	{
 		struct msgheader 
@@ -359,7 +371,8 @@ namespace dlib
 		void send_header(connection *dst, msgheader* header)
 		{
 			dst->write((char *)&header->dev_index, 24);
-			// dst->read(NULL, 1);
+			char tmp[1];
+			dst->read(tmp, 1);
 		}
 
 		void recv_header(connection *src, msgheader* header)
@@ -372,7 +385,8 @@ namespace dlib
 			header->type = *((int *)(headerbuffer + 12));
 			header->length = *((int *)(headerbuffer + 16));
 			header->reserve = *((int *)(headerbuffer + 20));
-			// src->write(" ", 1);
+			char tmp = ' ';
+			src->write(&tmp, 1);
 
 			delete[] headerbuffer;
 		}

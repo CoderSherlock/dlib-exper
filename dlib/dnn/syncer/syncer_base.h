@@ -377,7 +377,7 @@ namespace dlib
     template <typename trainer_type,
               typename data_type,
               typename label_type>
-    std::ostream dnn_syncer<trainer_type, data_type, label_type>::operator<<(std::ostream &out)
+    std::ostream& dnn_syncer<trainer_type, data_type, label_type>::operator<<(std::ostream &out)
     {
         out << trainer << std::endl;
         out << static_cast<int>(role) << std::endl;

@@ -467,7 +467,18 @@ namespace dlib
               typename label_type>
     void dnn_full_leader<trainer_type, data_type, label_type>::init_thread_pool()
     {
-        this->incoming_message = new local_msg_list();
+        // Current start index for dividing jobs
+        this->current_start = 0;
+        this->current_start_lock = new mutex();
+
+        // For sync-pattern use
+        if (this->me.sync_type == device_sync_type::sync)
+        {
+            this->childAmount = this->slaves_list.size();
+            this->sync_child_indicator = 0;
+            this->sync_child_indicator_mutex = new mutex();
+        }
+
         // Listener thread
         this->worker_thread_lock = new mutex();
         this->listener_thread_ptr = new std::thread(&dnn_full_leader::listener_thread, this);
@@ -489,19 +500,23 @@ namespace dlib
         {
             connection *src;
 
-            lt->accept(src);
+            if (lt->accept(src) < 0)
+            {
+                std::cerr << __FILE__ << ":" << __LINE__ << " Can't accept new socket anymore." << std::endl;
+            }
+            std::cout << src->get_foreign_ip() << ":" << src->get_foreign_port() << " -> " << src->get_local_ip() << ":" << src->get_local_port() << "  " << src->get_socket_descriptor() << std::endl;
             std::thread *cur_thread = new std::thread(&dnn_full_leader::listener_worker_thread, this, src);
             this->worker_threads.push_back(cur_thread);
 
-            this->worker_thread_lock->lock();
-            for (auto t : this->worker_threads)
-            {
-                if (t->joinable())
-                {
-                    t->join();
-                }
-            }
-            this->worker_thread_lock->unlock();
+            // this->worker_thread_lock->lock();
+            // for (auto t : this->worker_threads)
+            // {
+            //     if (t->joinable())
+            //     {
+            //         t->join();
+            //     }
+            // }
+            // this->worker_thread_lock->unlock();
         }
     }
 
@@ -527,43 +542,112 @@ namespace dlib
         switch (req_header.type)
         {
         case task_type::train_one_batch:
-            std::cout << "Dispatch a batch" << std::endl;
+            logger(this->me.number, "Dispatch a batch");
             network::recv_a_task(conn, &req_task);
-            break;
+            network::halt_message_session(conn);
 
+            break;
         case task_type::request_one_batch:
-            std::cout << "Request a batch" << std::endl;
+            logger(this->me.number, "Request a batch");
             network::recv_a_task(conn, &req_task);
 
             res_header.length = sizeof(res_task);
             res_header.type = task_type::train_one_batch;
-            // Get a task
-            // unsigned long start = current_start, end = (current_start + BATCH_SIZE * this->slaves_list[i].comp_ability >= training_size - 1 ? training_size - 1 : current_start + BATCH_SIZE * this->slaves_list[i].comp_ability);
+
+            // Get a task based on task->reserved == comp_capability
+            this->current_start_lock->lock();
+            if (this->current_start + BATCH_SIZE * req_task.reserved >= this->default_dataset->getData().size() - 1)
+            {
+                start = this->current_start;
+                end = this->default_dataset->getData().size() - 1;
+                this->current_start = 0;
+                this->epoch += 1;
+            }
+            else
+            {
+                start = this->current_start;
+                end = this->current_start + BATCH_SIZE * req_task.reserved;
+                this->current_start = end;
+            }
+            this->current_start_lock->unlock();
+
             res_task.opcode = task_type::train_one_batch;
-            start = 0;
-            end = 128;
             std::memcpy(&res_task.operand1, &start, sizeof(res_task.operand1));
             std::memcpy(&res_task.operand2, &end, sizeof(res_task.operand2));
+            std::cout << res_task.opcode << ":" << res_task.operand1 << "~" << res_task.operand2 << std::endl;
             // Send task back
             network::send_header(conn, &res_header);
             network::send_a_task(conn, res_task);
+            network::halt_message_session(conn);
 
             break;
         case task_type::request_updated_parameter:
-            std::cout << "Request the updated parameter" << std::endl;
+            logger(this->me.number, "Request the updated parameter");
 
             res_header.type = task_type::response_most_updated_parameter;
 
             network::send_header(conn, &res_header);
             dnn_leader<trainer_type, data_type, label_type>::send_parameters(conn);
+            network::halt_message_session(conn);
 
             break;
         case task_type::send_trained_parameter:
-            std::cout << "Received a trained parameter" << std::endl;
+            logger(this->me.number, "Received a trained parameter");
 
             if (this->me.sync_type == device_sync_type::sync)
             {
                 // SYNC
+                std::vector<tensor *> global_paras;
+                global_paras.resize(this->trainer->num_computational_layers);
+                visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+                    global_paras[i] = &t;
+                });
+
+                // Create a data structure to store incoming parameters
+                std::vector<resizable_tensor> incoming_paras;
+                incoming_paras.resize(this->trainer->num_computational_layers);
+
+                for (size_t i = 0; i < incoming_paras.size(); i++)
+                {
+                    incoming_paras[i].copy_size(*global_paras[i]);
+                }
+
+                // Receive after-trained parameter
+                this->receive_gradients_from_device(conn, incoming_paras);
+
+                std::vector<tensor *> incoming_paras_ptr(this->trainer->num_computational_layers);
+
+                for (size_t j = 0; j < incoming_paras_ptr.size(); j++)
+                {
+                    incoming_paras_ptr[j] = &incoming_paras[j];
+                }
+
+                this->sync_child_indicator_mutex->lock();
+                if (this->sync_child_indicator == 0)
+                {
+                    this->sync_global_paras.push_back(global_paras);
+                }
+                this->sync_global_paras.push_back(incoming_paras_ptr);
+                this->sync_child_indicator += 1;
+                this->sync_child_indicator_mutex->unlock();
+
+                if (this->sync_child_indicator == this->childAmount)
+                {
+                    this->trainer->read_lock.lock();
+                    this->average_ptr(this->sync_global_paras);
+                    this->trainer->read_lock.unlock();
+
+                    this->sync_global_paras.clear();
+                    this->sync_child_indicator_mutex->lock();
+                    this->sync_child_indicator = 0;
+                    this->sync_child_indicator_mutex->unlock();
+                }
+                else
+                {
+                    while (this->sync_child_indicator != 0)
+                    {
+                    }
+                }
             }
             else
             {
@@ -595,22 +679,21 @@ namespace dlib
                     incoming_paras_ptr[j] = &incoming_paras[j];
                 }
 
-
                 paras.push_back(global_paras);
                 paras.push_back(incoming_paras_ptr);
 
                 this->trainer->read_lock.lock();
-
                 this->average_ptr(paras);
-
                 this->trainer->read_lock.unlock();
             }
 
             res_header.type = task_type::recv_trained_parameter;
             network::send_header(conn, &res_header);
+            network::halt_message_session(conn);
             break;
         default:
-            std::cout << __FILE__ << ":" << __LINE__ << " An unknown request header" << std::endl;
+            std::cerr << __FILE__ << ":" << __LINE__ << " An unknown request header" << std::endl;
+            throw exception();
         }
     }
 

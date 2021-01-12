@@ -43,7 +43,6 @@ namespace dlib
 		return ret;
 	}
 
-	
 	/*==================================================================================
  *	Leader Manage functions, by PZH
  *
@@ -148,7 +147,7 @@ namespace dlib
 	template <typename trainer_type,
 			  typename data_type,
 			  typename label_type>
-	void dnn_leader<trainer_type, data_type, label_type>::send_parameters(connection *slave)
+	void dnn_leader<trainer_type, data_type, label_type>::send_parameters(connection *conn)
 	{
 
 		std::vector<tensor *> tensors;
@@ -163,8 +162,30 @@ namespace dlib
 		{
 			if (tensors[i]->size() != 0)
 			{
-				print_tensor(tensors[i], 10);
-				network::send_compressed_tensor(slave, tensors[i]);
+				// print_tensor(tensors[i], 10);
+				network::send_compressed_tensor(conn, tensors[i]);
+			}
+		}
+	}
+
+	template <typename trainer_type,
+			  typename data_type,
+			  typename label_type>
+	void dnn_leader<trainer_type, data_type, label_type>::send_parameters_wp(connection *conn, std::vector<resizable_tensor> parameters)
+	{
+		std::vector<tensor *> temp(this->trainer->num_computational_layers);
+		for (size_t i = 0; i < temp.size(); i++)
+		{
+			// TODO : Deal with 0
+			temp[i] = &parameters[i];
+		}
+
+		for (size_t i = 0; i < temp.size(); i++)
+		{
+			if (temp[i]->size() != 0)
+			{
+				// print_tensor(tensors[i], 10);
+				network::send_compressed_tensor(conn, temp[i]);
 			}
 		}
 	}
@@ -346,51 +367,6 @@ namespace dlib
 		}
 	}
 
-	
-	template <typename trainer_type,
-			  typename data_type,
-			  typename label_type>
-	void dnn_leader<trainer_type, data_type, label_type>::downstream_thread(int child_index, connection *src, bool *stop_flag)
-	{
-		task_op operation;
-		while(*stop_flag)
-		{
-			memset(&operation, '\0', sizeof(task_op));
-			// Read a control message as request
-			operation = this->wait_for_task(src);
-			// Receive the payload
-			switch(operation.opcode)
-			{
-				case task_type::train_one_batch:
-				{
-					// This seems not possible to be triggered.
-					break;
-				}
-				case task_type::send_trained_parameter:
-				{
-					break;
-
-				} 
-				case task_type::stop_train:
-				{
-					// This seems not possible to be triggered.
-					break;
-				}
-				case task_type::request_one_batch:
-				{
-					// Add request into primary upstream_queue.
-					// Wait for its task is ready.
-					break;
-				}
-				default: 
-				{
-
-				}
-			}
-			// Send a control message as response
-		}
-	};
-
 	template <typename trainer_type,
 			  typename data_type,
 			  typename label_type>
@@ -398,7 +374,7 @@ namespace dlib
 	{
 		if (slave_index == -1)
 		{
-			if(!network::send_a_task(this->master_conn, task))
+			if (!network::send_a_task(this->master_conn, task))
 				return 0;
 		}
 		else
@@ -406,7 +382,7 @@ namespace dlib
 			if (this->slaves_status[slave_index] != slaveStatus::Running)
 				return 0;
 
-			if(!network::send_a_task(this->slaves_conns[slave_index], task))
+			if (!network::send_a_task(this->slaves_conns[slave_index], task))
 				return 0;
 		}
 		return 1;
@@ -749,7 +725,7 @@ namespace dlib
 
 				// Aggregate requests
 				int all_request_size = 0;
-				for (int i = 0; i < sizeof(children_request_tasks)/sizeof(task_op); i++)
+				for (int i = 0; i < sizeof(children_request_tasks) / sizeof(task_op); i++)
 				{
 					if (children_request_tasks[i].opcode == 4)
 					{
@@ -843,6 +819,243 @@ namespace dlib
 			}
 		}
 	};
+
+	template <typename trainer_type,
+			  typename data_type,
+			  typename label_type>
+	void dnn_leader<trainer_type, data_type, label_type>::init_thread_pool()
+	{
+		// Current start index for dividing jobs
+		this->serialized_upstream_lock = new mutex();
+
+		// For sync-pattern use
+		if (this->me.sync_type == device_sync_type::sync)
+		{
+			this->childAmount = this->slaves_list.size();
+			this->sync_child_indicator = 0;
+			this->sync_child_indicator_mutex = new mutex();
+		}
+
+		// Listener thread
+		this->worker_thread_lock = new mutex();
+		this->listener_thread_ptr = new std::thread(&dnn_leader::listener_thread, this);
+	}
+
+	template <typename trainer_type,
+			  typename data_type,
+			  typename label_type>
+	void dnn_leader<trainer_type, data_type, label_type>::listener_thread()
+	{
+		std::cout << "Start a full leader listener thread ..." << std::endl;
+		listener *lt;
+		if (create_listener(lt, this->me.port, this->me.ip))
+		{
+			std::cerr << "Unable to create a listener" << std::endl;
+		}
+
+		while (true)
+		{
+			connection *src;
+
+			if (lt->accept(src) < 0)
+			{
+				std::cerr << __FILE__ << ":" << __LINE__ << " Can't accept new socket anymore." << std::endl;
+			}
+			std::cout << src->get_foreign_ip() << ":" << src->get_foreign_port() << " -> " << src->get_local_ip() << ":" << src->get_local_port() << "  " << src->get_socket_descriptor() << std::endl;
+			std::thread *cur_thread = new std::thread(&dnn_leader::listener_worker_thread, this, src);
+			this->worker_threads.push_back(cur_thread);
+
+			// this->worker_thread_lock->lock();
+			// for (auto t : this->worker_threads)
+			// {
+			//     if (t->joinable())
+			//     {
+			//         t->join();
+			//     }
+			// }
+			// this->worker_thread_lock->unlock();
+		}
+	}
+
+	template <typename trainer_type,
+			  typename data_type,
+			  typename label_type>
+	void dnn_leader<trainer_type, data_type, label_type>::listener_worker_thread(connection *conn)
+	{
+		std::cout << "Calling a full leader worker thread ..." << std::endl;
+		network::msgheader req_header, res_header;
+		task_op req_task, res_task;
+		// unsigned long start, end;
+		std::vector<resizable_tensor> latest_parameters;
+
+		res_header.dev_index = this->me.number;
+		inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
+		res_header.port = this->me.port;
+
+		network::recv_header(conn, &req_header);
+		char src_ip_str[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &(req_header.ip), src_ip_str, INET_ADDRSTRLEN);
+		std::cout << "Message from " << src_ip_str << ":" << req_header.port << std::endl;
+
+		switch (req_header.type)
+		{
+		case task_type::train_one_batch:
+			logger(this->me.number, "Dispatch a batch");
+			network::recv_a_task(conn, &req_task);
+			network::halt_message_session(conn);
+
+			break;
+		case task_type::request_one_batch:
+			logger(this->me.number, "Request a batch");
+			network::recv_a_task(conn, &req_task);
+
+			// this->serialized_upstream_lock->lock();
+			try
+			{
+				connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+				logger(this->me.number, "Request a batch from the worker");
+				std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
+				network::send_header(session, &req_header); // Send a batch request
+				network::send_a_task(session, req_task);
+				network::recv_header(session, &res_header);
+				network::recv_a_task(session, &res_task);
+				network::halt_message_session(session);
+			}
+			catch (...)
+			{
+				std::cerr << "Something went wrong when request a training job." << std::endl;
+			}
+			// this->serialized_upstream_lock->unlock();
+
+			// Send task back
+			network::send_header(conn, &res_header);
+			network::send_a_task(conn, res_task);
+			network::halt_message_session(conn);
+
+			break;
+		case task_type::request_updated_parameter:
+			logger(this->me.number, "Request the updated parameter");
+
+			// this->serialized_upstream_lock->lock();
+			try
+			{
+				connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+				logger(this->me.number, "Request updated parameter from the worker");
+				std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
+				network::send_header(session, &req_header); // Send a batch request
+				network::recv_header(session, &res_header);
+				this->receive_latest_parameters(session, latest_parameters);
+				network::halt_message_session(session);
+			}
+			catch (...)
+			{
+				std::cerr << "Something went wrong when request the latest parameters." << std::endl;
+			}
+			// this->serialized_upstream_lock->unlock();
+
+			network::send_header(conn, &res_header);
+			dnn_leader<trainer_type, data_type, label_type>::send_parameters_wp(conn, latest_parameters);
+			network::halt_message_session(conn);
+
+			break;
+
+		case task_type::send_trained_parameter:
+			logger(this->me.number, "Received a trained parameter");
+
+			if (this->me.sync_type == device_sync_type::sync)
+			{
+				// SYNC
+				std::vector<tensor *> global_paras;
+				global_paras.resize(this->trainer->num_computational_layers);
+				visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+					global_paras[i] = &t;
+				});
+
+				// Create a data structure to store incoming parameters
+				std::vector<resizable_tensor> incoming_paras;
+				incoming_paras.resize(this->trainer->num_computational_layers);
+
+				for (size_t i = 0; i < incoming_paras.size(); i++)
+				{
+					incoming_paras[i].copy_size(*global_paras[i]);
+				}
+
+				// Receive after-trained parameter
+				this->receive_latest_parameters(conn, incoming_paras);
+
+				std::vector<tensor *> incoming_paras_ptr(this->trainer->num_computational_layers);
+
+				for (size_t j = 0; j < incoming_paras_ptr.size(); j++)
+				{
+					incoming_paras_ptr[j] = &incoming_paras[j];
+				}
+
+				this->sync_child_indicator_mutex->lock();
+				if (this->sync_child_indicator == 0)
+				{
+					this->sync_global_paras.push_back(global_paras);
+				}
+				this->sync_global_paras.push_back(incoming_paras_ptr);
+				this->sync_child_indicator += 1;
+				this->sync_child_indicator_mutex->unlock();
+
+				if (this->sync_child_indicator == this->childAmount)
+				{
+					this->trainer->read_lock.lock();
+					this->average_ptr(this->sync_global_paras);
+					this->trainer->read_lock.unlock();
+
+					this->sync_global_paras.clear();
+					this->sync_child_indicator_mutex->lock();
+					this->sync_child_indicator = 0;
+					this->sync_child_indicator_mutex->unlock();
+				}
+				else
+				{
+					while (this->sync_child_indicator != 0)
+					{
+					}
+				}
+			}
+			else
+			{
+				// ASYNC
+				// Create a data structure to store incoming parameters
+				std::vector<resizable_tensor> incoming_paras;
+				incoming_paras.resize(this->trainer->num_computational_layers);
+				visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
+                    incoming_paras[i].copy_size(t);
+                });
+
+				// Receive after-trained parameter
+				this->receive_latest_parameters(conn, incoming_paras);
+
+				this->serialized_upstream_lock->lock();
+				try
+				{
+					connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+					logger(this->me.number, "Send trained parameter from the worker");
+					std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
+					network::send_header(session, &req_header); // Send a batch request
+					this->send_parameters_wp(session, incoming_paras);
+					network::recv_header(session, &res_header);
+					network::halt_message_session(session);
+				}
+				catch (...)
+				{
+					std::cerr << "Something went wrong when request the latest parameters." << std::endl;
+				}
+				this->serialized_upstream_lock->unlock();
+			}
+
+			network::send_header(conn, &res_header);
+			network::halt_message_session(conn);
+			break;
+		default:
+			std::cerr << __FILE__ << ":" << __LINE__ << " An unknown request header" << std::endl;
+			throw exception();
+		}
+	}
 
 } // End of Namespace dlib
 

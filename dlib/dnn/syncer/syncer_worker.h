@@ -146,19 +146,21 @@ namespace dlib
 		req_task.operand1 = 0;							// Not used
 		req_task.operand2 = 0;							// Not used
 		
-		try
-		{
+		// try
+		// {
 			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+			logger(this->me.number, "Request a batch from the worker");
+			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 			network::send_header(session, &req_header); // Send a batch request
 			network::send_a_task(session, req_task);
 			network::recv_header(session, &res_header);
 			network::recv_a_task(session, &res_task);
 			network::halt_message_session(session);
-		}
-		catch (std::exception e)
-		{
-			std::cerr << "Something went wrong when request a training job." << std::endl;
-		}
+		// }
+		// catch (...)
+		// {
+		// 	std::cerr << "Something went wrong when request a training job." << std::endl;
+		// }
 
 		if (res_task.opcode == task_type::train_one_batch)
 		{
@@ -206,12 +208,14 @@ namespace dlib
 		try
 		{
 			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+			logger(this->me.number, "Request updated parameter from the worker");
+			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 			network::send_header(session, &req_header); // Send a batch request
 			network::recv_header(session, &res_header);
 			this->recv_and_update_parameters(session);
 			network::halt_message_session(session);
 		}
-		catch (std::exception e)
+		catch (...)
 		{
 			std::cerr << "Something went wrong when request the latest parameters." << std::endl;
 		}
@@ -235,12 +239,14 @@ namespace dlib
 		try
 		{
 			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+			logger(this->me.number, "Send trained parameter from the worker");
+			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 			network::send_header(session, &req_header); // Send a batch request
 			this->send_parameters_to_device(session);
 			network::recv_header(session, &res_header);
 			network::halt_message_session(session);
 		}
-		catch (std::exception e)
+		catch (...)
 		{
 			std::cerr << "Something went wrong when request the latest parameters." << std::endl;
 		}

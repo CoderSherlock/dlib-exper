@@ -191,9 +191,10 @@ int main(int argc, char **argv) try
 	}
 	else if (role == device_role::leader)
 	{
-		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
+		dnn_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
 		leader.set_this_device(me);
 		leader.set_role(role);
+		leader.set_master_device(master);
 		leader.exper = 1;
 
 		for (int i = 0; i < slave_list.size(); i++)
@@ -206,24 +207,23 @@ int main(int argc, char **argv) try
 		leader.init_trainer(training);
 		leader.init_thread_pool();
 		
-		// sleep((unsigned int)5);
-		leader.init_slaves();
-		std::cout << "Finished Initialization, now start training procedures" << std::endl;
-		leader.print_slaves_status();
-		std::cout << "Now we have " << leader.get_running_slaves_num() << " slaves" << std::endl;
+		unsigned long record_epoch = 0;
+		while(1) { 
+			// if (leader.epoch != record_epoch) {
+			// 	leader.trainer->read_lock.lock();
+			// 	training.accuracy(net);
+			// 	leader.trainer->read_lock.unlock();
+			// 	record_epoch = leader.epoch;
 
-		// if (!leader.wait_for_master_init())											// Wait for parent to init, TODO: Not necessary to be after this function finished.
-		// {
-		// 	std::cerr << "Error happens when master send init message" << std::endl;
-		// 	exit(0);
-		// }
-		std::cout << "Connected by master" << std::endl;
+			// 	if (record_epoch == 1) exit(0);
+			// }
+		}
 
-		leader.endless_sync();
 	}
 	else if (role == device_role::supleader)
 	{
 		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
+		me.sync_type = device_sync_type::sync;
 		leader.set_this_device(me);
 		leader.set_role(role);
 		leader.exper = 1;
@@ -252,7 +252,17 @@ int main(int argc, char **argv) try
 
 		dataset<matrix<unsigned char>, unsigned long> testing = training;
 
-		while(1) { }
+		unsigned long record_epoch = 0;
+		while(1) { 
+			if (leader.epoch != record_epoch) {
+				leader.trainer->read_lock.lock();
+				training.accuracy(net);
+				leader.trainer->read_lock.unlock();
+				record_epoch = leader.epoch;
+
+				if (record_epoch == 5) exit(0);
+			}
+		}
 		// leader.sync(&testing);
 		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
 		std::cout << "All time: " << print_time << std::endl;

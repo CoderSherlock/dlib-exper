@@ -106,7 +106,7 @@ namespace dlib
 
 
 		// TODO
-		std::ostream operator<<(std::ostream &out);
+		std::ostream& operator<<(std::ostream &out);
 	};
 
 	template <typename trainer_type,
@@ -128,7 +128,7 @@ namespace dlib
 			this->role = role;
 		}
 
-		dnn_leader(trainer_type *trainer, int role)
+		dnn_leader(trainer_type *trainer, device_role role)
 		{
 			this->trainer = trainer;
 			this->role = role;
@@ -140,6 +140,14 @@ namespace dlib
 		std::vector<connection *> slaves_conns; // List of slaves' connection
 		std::vector<slaveStatus> slaves_status; // List of slaves' stauts, such as RUNNING / NOTCONN / INITIALIZE
 		std::vector<int> slaves_capacities;		// List of slaves' compute capabilities, this is reserved for future's heterogeneity archs
+
+		int isSerialized = 1;
+		mutex *serialized_upstream_lock;
+		int childAmount = 0;
+		volatile int sync_child_indicator = 0;
+		mutex *sync_child_indicator_mutex;
+		std::vector<std::vector<tensor *>> sync_global_paras;
+		
 
 		void add_slave(device);		  // Add a device to the slave list
 		void remove_slave(size_t);	  // Remove a slave by its index from slave list
@@ -158,8 +166,11 @@ namespace dlib
 		void receive_gradients_parallism(std::vector<std::vector<resizable_tensor>> &all_tensors);				  // Receive gradients in paralized, same as up
 		void update_gradients(std::vector<tensor *> &gradients);												  // Update **gradients** to trainer, not perform update to parameter
 
-		void upstream_thread(connection *, bool *);
-		void downstream_thread(int, connection *, bool *);
+		void send_parameters_wp(connection *worker, std::vector<resizable_tensor> parameters);	 // Send leader's trainer's parameter (in-memory) directly to the connection
+
+		void init_thread_pool();
+		void listener_thread();
+		void listener_worker_thread(connection *conn);
 
 		int dispatch_jobs(int slave_index, task_op task);		  // Dispatch a task to the slave specified by given index
 		void sn_sync();											  //
@@ -209,6 +220,10 @@ namespace dlib
 		void listener_thread();
 		void listener_worker_thread(connection *conn);
 
+		volatile unsigned long epoch = 0;
+		unsigned long current_start = 0;
+		mutex *current_start_lock;
+
 	private:
 		void async_thread(int); // Working thread function for each child
 
@@ -219,6 +234,8 @@ namespace dlib
 		signaler **job_signal;									 // Signaler to sync status between main thread and async_threads
 		mutex **job_signal_mutex;								 // Mutex used by above signaler
 		bool *signal_status;									 // To indicate ready if main thread has a fast pace than receiver thread which has not set signal wait yet
+
+		
 	};
 
 	template <typename trainer_type,
