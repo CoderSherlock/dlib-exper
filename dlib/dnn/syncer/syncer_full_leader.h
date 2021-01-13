@@ -506,14 +506,15 @@ namespace dlib
             }
             std::cout << src->get_foreign_ip() << ":" << src->get_foreign_port() << " -> " << src->get_local_ip() << ":" << src->get_local_port() << "  " << src->get_socket_descriptor() << std::endl;
             std::thread *cur_thread = new std::thread(&dnn_full_leader::listener_worker_thread, this, src);
-            this->worker_threads.push_back(cur_thread);
+            cur_thread->detach();
 
             // this->worker_thread_lock->lock();
+            // this->worker_threads.push_back(cur_thread);            
             // for (auto t : this->worker_threads)
             // {
             //     if (t->joinable())
             //     {
-            //         t->join();
+            //         // t->join();
             //     }
             // }
             // this->worker_thread_lock->unlock();
