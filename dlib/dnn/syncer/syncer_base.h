@@ -35,6 +35,7 @@ namespace dlib
     void dnn_syncer<trainer_type, data_type, label_type>::set_this_device(device me_)
     {
         this->me = me_;
+        this->logfile = new ofstream(std::to_string(this->me.number) + ".log");
         // this->listener_thread_ptr = new std::thread(&dnn_syncer::listen_thread, this);
     }
 

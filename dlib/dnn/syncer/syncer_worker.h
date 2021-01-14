@@ -9,7 +9,7 @@ namespace dlib
 	template <typename trainer_type,
 			  typename data_type,
 			  typename label_type>
-	void dnn_worker<trainer_type, data_type, label_type>::recv_and_update_parameters(connection* src)
+	void dnn_worker<trainer_type, data_type, label_type>::recv_and_update_parameters(connection *src)
 	{
 		std::vector<resizable_tensor> latest_parameters;
 		this->receive_latest_parameters(src, latest_parameters);
@@ -145,17 +145,18 @@ namespace dlib
 		req_task.reserved = 1;							// Request only one batch
 		req_task.operand1 = 0;							// Not used
 		req_task.operand2 = 0;							// Not used
-		
+
 		// try
 		// {
-			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
-			logger(this->me.number, "Request a batch from the worker");
-			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
-			network::send_header(session, &req_header); // Send a batch request
-			network::send_a_task(session, req_task);
-			network::recv_header(session, &res_header);
-			network::recv_a_task(session, &res_task);
-			network::halt_message_session(session);
+		logger(this->logfile, this->me.number, this->master.number, 0, "Request a batch from the worker" + std::to_string(this->me.number));
+		connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+		std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
+		network::send_header(session, &req_header); // Send a batch request
+		network::send_a_task(session, req_task);
+		network::recv_header(session, &res_header);
+		network::recv_a_task(session, &res_task);
+		network::halt_message_session(session);
+		logger(this->logfile, this->me.number, this->master.number, 1, "Request a batch from the worker" + std::to_string(this->me.number));
 		// }
 		// catch (...)
 		// {
@@ -190,7 +191,7 @@ namespace dlib
 		else
 		{
 			// Unexpected response ==> Report and stop this session.
-			std::cout << __FILE__ << ":" <<__LINE__ << " Unexpected response payload with NO train_one_batch task." << std::endl;
+			std::cout << __FILE__ << ":" << __LINE__ << " Unexpected response payload with NO train_one_batch task." << std::endl;
 		}
 
 		// Request the most updated global parameter if needed
@@ -207,13 +208,14 @@ namespace dlib
 
 		try
 		{
+			logger(this->logfile, this->me.number, this->master.number, 0, "Request updated parameter from the worker" + std::to_string(this->me.number));
 			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
-			logger(this->me.number, "Request updated parameter from the worker");
 			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 			network::send_header(session, &req_header); // Send a batch request
 			network::recv_header(session, &res_header);
 			this->recv_and_update_parameters(session);
 			network::halt_message_session(session);
+			logger(this->logfile, this->me.number, this->master.number, 1, "Request updated parameter from the worker" + std::to_string(this->me.number));
 		}
 		catch (...)
 		{
@@ -238,13 +240,14 @@ namespace dlib
 
 		try
 		{
+			logger(this->logfile, this->me.number, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(this->me.number));
 			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
-			logger(this->me.number, "Send trained parameter from the worker");
 			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 			network::send_header(session, &req_header); // Send a batch request
 			this->send_parameters_to_device(session);
 			network::recv_header(session, &res_header);
 			network::halt_message_session(session);
+			logger(this->logfile, this->me.number, this->master.number, 1, "Send trained parameter from the worker" + std::to_string(this->me.number));
 		}
 		catch (...)
 		{

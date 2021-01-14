@@ -68,3 +68,10 @@ if [ "$VARIANT" = "python-api" ]; then
   python setup.py test --clean
 fi
 
+# Expected environment of distributed deep learning.
+if [ "$VARIANT" = "ddl" ]; then
+  mkdir build
+  cd build
+  cmake ../examples -DCMAKE_BUILD_TYPE=Release -DDLIB_USE_CUDA=0 -DDLIB_JPEG_SUPPORT=0 -DDLIB_LINK_WITH_SQLITE3=0 -DDLIB_USE_BLAS=0 -DDLIB_USE_LAPACK=0 -DDLIB_PNG_SUPPORT=0 -DDLIB_GIF_SUPPORT=0 -DDLIB_USE_FFTW=0 -DDLIB_USE_MKL_FFT=0 -DDLIB_NO_GUI_SUPPORT=1
+  cmake --build . -- -j 10
+fi

@@ -348,9 +348,9 @@ namespace dlib
 		return ((unsigned long long int)tv.tv_sec * 1000000 + tv.tv_usec);
 	}
 
-	void logger(int number, std::string msg)
+	void logger(std::ofstream* out, int src, int dst, int sore, std::string msg)
 	{
-		std::cout << "[log]," << number << "," << current_time_in_nanosec() << "," << msg << std::endl; 
+		*out << "[log]," << src << ","  << dst << "," << sore << "," << current_time_in_nanosec() << "," << msg << std::endl; 
 	}
 
 	namespace network

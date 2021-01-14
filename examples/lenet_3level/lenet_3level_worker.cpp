@@ -256,7 +256,7 @@ int main(int argc, char **argv) try
 		while(1) { 
 			if (leader.epoch != record_epoch) {
 				leader.trainer->read_lock.lock();
-				training.accuracy(net);
+				// training.accuracy(net);
 				leader.trainer->read_lock.unlock();
 				record_epoch = leader.epoch;
 

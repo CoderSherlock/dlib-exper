@@ -4,28 +4,19 @@ matrix:
   include:
     ###################
     - language: cpp
-      compiler: clang
+      compiler: gcc
       os: linux
       env:
-        - VARIANT=examples
+        - VARIANT=ddl
       script:
         - dlib/travis/build-and-test.sh
 
     ###################
     - language: cpp
+      arch: arm64
       compiler: gcc
       os: linux
       env:
-        - VARIANT=dlib_all_source_cpp
+        - VARIANT=ddl
       script:
         - dlib/travis/build-and-test.sh
-
-    ###################
-    - language: cpp
-      compiler: gcc
-      os: linux
-      env:
-        - VARIANT=examples
-      script:
-        - dlib/travis/build-and-test.sh
-

@@ -543,13 +543,13 @@ namespace dlib
         switch (req_header.type)
         {
         case task_type::train_one_batch:
-            logger(this->me.number, "Dispatch a batch");
+            // logger(this->me.number, "Dispatch a batch");
             network::recv_a_task(conn, &req_task);
             network::halt_message_session(conn);
 
             break;
         case task_type::request_one_batch:
-            logger(this->me.number, "Request a batch");
+            // logger(this->me.number, "Request a batch");
             network::recv_a_task(conn, &req_task);
 
             res_header.length = sizeof(res_task);
@@ -583,7 +583,7 @@ namespace dlib
 
             break;
         case task_type::request_updated_parameter:
-            logger(this->me.number, "Request the updated parameter");
+            // logger(this->me.number, "Request the updated parameter");
 
             res_header.type = task_type::response_most_updated_parameter;
 
@@ -593,7 +593,7 @@ namespace dlib
 
             break;
         case task_type::send_trained_parameter:
-            logger(this->me.number, "Received a trained parameter");
+            // logger(this->me.number, "Received a trained parameter");
 
             if (this->me.sync_type == device_sync_type::sync)
             {

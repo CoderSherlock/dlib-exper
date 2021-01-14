@@ -62,6 +62,8 @@ namespace dlib
 		int num_debug = 0;
 		int exper = 0;
 
+		std::ofstream * logfile;
+
 		// Default sync initilization
 		dnn_syncer() = default;
 		dnn_syncer(const dnn_syncer &) = default;

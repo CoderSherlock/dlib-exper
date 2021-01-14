@@ -901,26 +901,27 @@ namespace dlib
 		switch (req_header.type)
 		{
 		case task_type::train_one_batch:
-			logger(this->me.number, "Dispatch a batch");
+			// logger(this->me.number, "Dispatch a batch");
 			network::recv_a_task(conn, &req_task);
 			network::halt_message_session(conn);
 
 			break;
 		case task_type::request_one_batch:
-			logger(this->me.number, "Request a batch");
+			// logger(this->me.number, "Request a batch");
 			network::recv_a_task(conn, &req_task);
 
 			// this->serialized_upstream_lock->lock();
 			try
 			{
+				logger(this->logfile, this->me.number, this->master.number, 0, "Request a batch from the worker" + std::to_string(req_header.dev_index));
 				connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
-				logger(this->me.number, "Request a batch from the worker");
 				std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 				network::send_header(session, &req_header); // Send a batch request
 				network::send_a_task(session, req_task);
 				network::recv_header(session, &res_header);
 				network::recv_a_task(session, &res_task);
 				network::halt_message_session(session);
+				logger(this->logfile, this->me.number, this->master.number, 1, "Request a batch from the worker" + std::to_string(req_header.dev_index));
 			}
 			catch (...)
 			{
@@ -935,18 +936,19 @@ namespace dlib
 
 			break;
 		case task_type::request_updated_parameter:
-			logger(this->me.number, "Request the updated parameter");
+			// logger(this->me.number, "Request the updated parameter");
 
 			// this->serialized_upstream_lock->lock();
 			try
 			{
+				logger(this->logfile, this->me.number, this->master.number, 0, "Request updated parameter from the worker" + std::to_string(req_header.dev_index));
 				connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
-				logger(this->me.number, "Request updated parameter from the worker");
 				std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 				network::send_header(session, &req_header); // Send a batch request
 				network::recv_header(session, &res_header);
 				this->receive_latest_parameters(session, latest_parameters);
 				network::halt_message_session(session);
+				logger(this->logfile, this->me.number, this->master.number, 1, "Request updated parameter from the worker" + std::to_string(req_header.dev_index));
 			}
 			catch (...)
 			{
@@ -961,7 +963,7 @@ namespace dlib
 			break;
 
 		case task_type::send_trained_parameter:
-			logger(this->me.number, "Received a trained parameter");
+			// logger(this->me.number, "Received a trained parameter");
 
 			if (this->me.sync_type == device_sync_type::sync)
 			{
@@ -1025,8 +1027,8 @@ namespace dlib
 				std::vector<resizable_tensor> incoming_paras;
 				incoming_paras.resize(this->trainer->num_computational_layers);
 				visit_layer_parameters(this->trainer->devices[0]->net, [&](size_t i, tensor &t) {
-                    incoming_paras[i].copy_size(t);
-                });
+					incoming_paras[i].copy_size(t);
+				});
 
 				// Receive after-trained parameter
 				this->receive_latest_parameters(conn, incoming_paras);
@@ -1034,13 +1036,14 @@ namespace dlib
 				this->serialized_upstream_lock->lock();
 				try
 				{
+					logger(this->logfile, this->me.number, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(req_header.dev_index));
 					connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
-					logger(this->me.number, "Send trained parameter from the worker");
 					std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 					network::send_header(session, &req_header); // Send a batch request
 					this->send_parameters_wp(session, incoming_paras);
 					network::recv_header(session, &res_header);
 					network::halt_message_session(session);
+					logger(this->logfile, this->me.number, this->master.number, 1, "Send trained parameter from the worker" + std::to_string(req_header.dev_index));
 				}
 				catch (...)
 				{
