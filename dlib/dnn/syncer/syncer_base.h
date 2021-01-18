@@ -307,6 +307,9 @@ namespace dlib
             if (updated[i].size() != 0)
                 network::receive_compressed_tensor(src, &updated[i]);
         }
+
+        char tmp = ' ';
+		src->write(&tmp, 1);
     };
 
     template <typename trainer_type,

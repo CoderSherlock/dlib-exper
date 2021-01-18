@@ -166,6 +166,9 @@ namespace dlib
 				network::send_compressed_tensor(conn, tensors[i]);
 			}
 		}
+		
+		char tmp[1];
+		conn->read(tmp, 1);
 	}
 
 	template <typename trainer_type,
@@ -188,6 +191,9 @@ namespace dlib
 				network::send_compressed_tensor(conn, temp[i]);
 			}
 		}
+
+		char tmp[1];
+		conn->read(tmp, 1);
 	}
 
 	/******************************************************

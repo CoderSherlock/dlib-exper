@@ -26,6 +26,9 @@ namespace dlib
 			}
 		}
 		this->update(temp);
+
+		char tmp = ' ';
+		src->write(&tmp, 1);
 	}
 
 	template <typename trainer_type,
@@ -222,12 +225,15 @@ namespace dlib
 			std::cerr << "Something went wrong when request the latest parameters." << std::endl;
 		}
 
+		logger(this->logfile, this->me.number, this->master.number, 0, "Training");
 		this->starting_pistol();
+
 
 		this->trainer->distributed_signal.get_mutex().lock();
 		if (this->trainer->ready_status != 3)
 			this->trainer->distributed_signal.wait();
 		this->trainer->status_lock.unlock();
+		logger(this->logfile, this->me.number, this->master.number, 1, "Training");
 
 		memset(&req_header, '\0', sizeof(req_header));
 		memset(&res_header, '\0', sizeof(res_header));

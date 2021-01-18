@@ -399,6 +399,9 @@ namespace dlib
 				return 0;
 			}
 			dst->write((char *)&task.opcode, 24);
+
+			char tmp[1];
+			dst->read(tmp, 1);
 			return 1;
 		}
 
@@ -412,6 +415,8 @@ namespace dlib
 			task->operand1 = *((double *)(task_message + 8));
 			task->operand2 = *((double *)(task_message + 16));
 
+			char tmp = ' ';
+			src->write(&tmp, 1);
 			delete[] task_message;
 		}
 
