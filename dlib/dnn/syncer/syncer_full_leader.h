@@ -173,6 +173,8 @@ namespace dlib
                     network::receive_compressed_tensor(src, &cli_tensors[i]);
                 }
             }
+            char tmp = ' ';
+		    src->write(&tmp, 1);
         }
         catch (...)
         {

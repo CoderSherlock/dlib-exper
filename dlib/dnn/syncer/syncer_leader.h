@@ -1045,7 +1045,7 @@ namespace dlib
 					logger(this->logfile, this->me.number, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(req_header.dev_index));
 					connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
 					std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
-					network::send_header(session, &req_header); // Send a batch request
+					network::send_header(session, &req_header);
 					this->send_parameters_wp(session, incoming_paras);
 					network::recv_header(session, &res_header);
 					network::halt_message_session(session);
@@ -1057,7 +1057,6 @@ namespace dlib
 				}
 				this->serialized_upstream_lock->unlock();
 			}
-
 			network::send_header(conn, &res_header);
 			network::halt_message_session(conn);
 			break;
