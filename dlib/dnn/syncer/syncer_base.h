@@ -36,6 +36,7 @@ namespace dlib
     {
         this->me = me_;
         this->logfile = new ofstream(std::to_string(this->me.number) + ".log");
+        this->logger = new logbot(this->logfile);
         // this->listener_thread_ptr = new std::thread(&dnn_syncer::listen_thread, this);
     }
 

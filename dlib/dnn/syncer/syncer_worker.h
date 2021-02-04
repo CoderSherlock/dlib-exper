@@ -154,7 +154,7 @@ namespace dlib
 
 		// try
 		// {
-		logger(this->logfile, this->me.number, this->master.number, 0, "Request a batch from the worker" + std::to_string(this->me.number));
+		this->logger->log(this->me.number, this->master.number, 0, "Request a batch from the worker" + std::to_string(this->me.number));
 		connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
 		std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 		network::send_header(session, &req_header); // Send a batch request
@@ -162,7 +162,7 @@ namespace dlib
 		network::recv_header(session, &res_header);
 		network::recv_a_task(session, &res_task);
 		network::halt_message_session(session);
-		logger(this->logfile, this->me.number, this->master.number, 1, "Request a batch from the worker" + std::to_string(this->me.number));
+		this->logger->log(this->me.number, this->master.number, 1, "Request a batch from the worker" + std::to_string(this->me.number));
 		// }
 		// catch (...)
 		// {
@@ -214,21 +214,21 @@ namespace dlib
 
 		try
 		{
-			logger(this->logfile, this->me.number, this->master.number, 0, "Request updated parameter from the worker" + std::to_string(this->me.number));
+			this->logger->log(this->me.number, this->master.number, 0, "Request updated parameter from the worker" + std::to_string(this->me.number));
 			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
 			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 			network::send_header(session, &req_header); // Send a batch request
 			network::recv_header(session, &res_header);
 			this->recv_and_update_parameters(session);
 			network::halt_message_session(session);
-			logger(this->logfile, this->me.number, this->master.number, 1, "Request updated parameter from the worker" + std::to_string(this->me.number));
+			this->logger->log(this->me.number, this->master.number, 1, "Request updated parameter from the worker" + std::to_string(this->me.number));
 		}
 		catch (...)
 		{
 			std::cerr << "Something went wrong when request the latest parameters." << std::endl;
 		}
 
-		logger(this->logfile, this->me.number, this->master.number, 0, "Training");
+		this->logger->log(this->me.number, this->master.number, 0, "Training");
 		this->starting_pistol();
 
 
@@ -236,7 +236,7 @@ namespace dlib
 		if (this->trainer->ready_status != 3)
 			this->trainer->distributed_signal.wait();
 		this->trainer->status_lock.unlock();
-		logger(this->logfile, this->me.number, this->master.number, 1, "Training");
+		this->logger->log(this->me.number, this->master.number, 1, "Training");
 
 		memset(&req_header, '\0', sizeof(req_header));
 		memset(&res_header, '\0', sizeof(res_header));
@@ -249,14 +249,14 @@ namespace dlib
 
 		try
 		{
-			logger(this->logfile, this->me.number, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(this->me.number));
+			this->logger->log(this->me.number, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(this->me.number));
 			connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
 			std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 			network::send_header(session, &req_header); // Send a batch request
 			this->send_parameters_to_device(session);
 			network::recv_header(session, &res_header);
 			network::halt_message_session(session);
-			logger(this->logfile, this->me.number, this->master.number, 1, "Send trained parameter from the worker" + std::to_string(this->me.number));
+			this->logger->log(this->me.number, this->master.number, 1, "Send trained parameter from the worker" + std::to_string(this->me.number));
 		}
 		catch (...)
 		{

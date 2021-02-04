@@ -66,6 +66,7 @@ namespace dlib
 		int exper = 0;
 
 		std::ofstream * logfile;
+		logbot *logger;
 
 		// Default sync initilization
 		dnn_syncer() = default;

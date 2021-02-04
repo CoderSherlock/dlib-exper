@@ -348,10 +348,22 @@ namespace dlib
 		return ((unsigned long long int)tv.tv_sec * 1000000 + tv.tv_usec);
 	}
 
-	void logger(std::ofstream* out, int src, int dst, int sore, std::string msg)
+	class logbot
 	{
-		*out << "[log]," << src << ","  << dst << "," << sore << "," << current_time_in_nanosec() << "," << msg << std::endl; 
-	}
+		public:
+		logbot(std::ofstream* out) {
+			this->log_stream = out;
+		}
+
+		void log(int src, int dst, int sore, std::string msg) {
+			this->log_lock.lock();
+			*(this->log_stream) << "[log]," << src << ","  << dst << "," << sore << "," << current_time_in_nanosec() << "," << msg << std::endl;
+			this->log_lock.unlock();
+		}
+		private:
+		std::ofstream* log_stream;
+		mutex log_lock;
+	};
 
 	namespace network
 	{
