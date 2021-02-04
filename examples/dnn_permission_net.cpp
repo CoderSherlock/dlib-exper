@@ -15,7 +15,10 @@
 #include <csignal>
 #include <fstream>
 
+#ifndef DNN_DIST_DATA_H
+#define DNN_DIST_DATA_H
 #include "dnn_dist_data.h"
+#endif
 
 using namespace std;
 using namespace dlib;

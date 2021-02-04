@@ -238,6 +238,7 @@ namespace dlib
         const matrix_exp<EXP2>& m2
     )
     {
+        // std::cout << "(matrix * " << m1.size() << "x" << m2.size() << ")" << std::endl;
         return matrix_multiply_exp<EXP1, EXP2>(m1.ref(), m2.ref());
     }
 

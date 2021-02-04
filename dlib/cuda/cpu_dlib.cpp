@@ -10,6 +10,8 @@
 #include "../image_transforms/interpolation.h"
 #include "../threads.h"
 
+using std::chrono::system_clock;
+
 namespace dlib
 {
     namespace cpu 
@@ -2076,9 +2078,13 @@ namespace dlib
                 auto gi = mat(gradient_input.host()+gradient_input.k()*gradient_input.nr()*gradient_input.nc()*n,
                               gradient_input.k(),
                               gradient_input.nr()*gradient_input.nc());
-                                    
-
-                temp = trans(gi)*mat(filters);
+                // temp = trans(gi)*mat(filters);  // HPZ: Most time consumed
+                temp = trans(gi);
+                matrix<float> temp2 = mat(filters);
+                auto epoch_time = system_clock::now();
+                temp = temp * temp2;
+                // std::cout << "(Time for multiply) is "																			   //
+						//   << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; //
                 col2img(temp, data_gradient, n, filters.nr(), filters.nc(), last_stride_y, last_stride_x, last_padding_y, last_padding_x);
             }
         }

@@ -205,6 +205,7 @@ namespace dlib
         template <typename SUBNET>
         void backward(const tensor& gradient_input, SUBNET& sub, tensor& params_grad)
         {
+            auto epoch_time = system_clock::now();
             conv.get_gradient_for_data (true, gradient_input, filters(params,0), sub.get_gradient_input());
             // no dpoint computing the parameter gradients if they won't be used.
             if (learning_rate_multiplier != 0)
@@ -214,6 +215,8 @@ namespace dlib
                 auto b = biases(params_grad, filters.size());
                 tt::assign_conv_bias_gradient(b, gradient_input);
             }
+            std::cout << "(Time for con) is "																			   //
+						  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; //
         }
 
         const tensor& get_layer_params() const { return params; }
@@ -1634,6 +1637,7 @@ namespace dlib
         template <typename SUBNET>
         void backward(const tensor& gradient_input, SUBNET& sub, tensor& params_grad)
         {
+            auto epoch_time = system_clock::now();
             // no point computing the parameter gradients if they won't be used.
             if (learning_rate_multiplier != 0)
             {
@@ -1652,6 +1656,8 @@ namespace dlib
             // compute the gradient for the data
             auto w = weights(params, 0);
             tt::gemm(1,sub.get_gradient_input(), 1,gradient_input,false, w,true);
+            std::cout << "(Time for fc) is "																			   //
+						  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; //
         }
 
         alias_tensor_instance get_weights()

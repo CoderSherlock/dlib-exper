@@ -30,7 +30,10 @@
 #include "utils.h"
 #include "utils_debug.h"
 
+#ifndef DNN_DIST_DATA_H
+#define DNN_DIST_DATA_H
 #include "../../../examples/dnn_dist_data.h"
+#endif
 
 using std::chrono::system_clock;
 

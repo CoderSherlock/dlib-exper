@@ -260,7 +260,7 @@ int main(int argc, char **argv) try
 				leader.trainer->read_lock.unlock();
 				record_epoch = leader.epoch;
 
-				if (record_epoch == 5) exit(0);
+				if (record_epoch == 1) exit(0);
 			}
 		}
 		// leader.sync(&testing);

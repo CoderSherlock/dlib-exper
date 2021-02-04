@@ -20,6 +20,9 @@
 #include <type_traits>
 #include "../metaprogramming.h"
 
+using std::chrono::system_clock;
+
+
 #ifdef _MSC_VER
 // Tell Visual Studio not to recursively inline functions very much because otherwise it
 // takes hours to compile the DNN code sometimes.  It's crazy.  Hopefully we can remove
@@ -319,6 +322,7 @@ namespace dlib
             tensor& params_grad
         ) -> decltype(layer.backward(computed_output,gradient_input,sub,params_grad))
         {
+            std::cout << "!?!?!?!?1" << std::endl;
             layer.backward(computed_output,gradient_input,sub,params_grad);
         }
 
@@ -331,6 +335,7 @@ namespace dlib
             tensor& params_grad
         ) -> decltype(layer.backward(gradient_input,sub,params_grad))
         {
+            std::cout << "!?!?!?!?2" << std::endl;
             layer.backward(gradient_input,sub,params_grad);
         }
 
@@ -343,6 +348,7 @@ namespace dlib
             tensor& params_grad
         ) -> decltype(layer.backward_inplace(computed_output,gradient_input,sub.get_gradient_input(),params_grad))
         {
+            std::cout << "!?!?!?!?3" << std::endl;
             layer.backward_inplace(computed_output,gradient_input,sub.get_gradient_input(),params_grad);
         }
 
@@ -355,6 +361,7 @@ namespace dlib
             tensor& params_grad
         ) -> decltype(layer.backward_inplace(gradient_input,sub.get_gradient_input(),params_grad))
         {
+            std::cout << "!?!?!?!?4" << std::endl;
             layer.backward_inplace(gradient_input,sub.get_gradient_input(),params_grad);
         }
 
@@ -790,6 +797,7 @@ namespace dlib
 
         const tensor& forward(const tensor& x)			// HPZ: Forward computation
         {
+            auto epoch_time = system_clock::now();
             subnetwork->forward(x);
             const dimpl::subnet_wrapper<subnet_type> wsub(*subnetwork);
             if (!this_layer_setup_called)
@@ -803,6 +811,8 @@ namespace dlib
                 impl::call_layer_forward(details, wsub, cached_output);
 
             gradient_input_is_stale = true;
+            std::cout << "(Time for forw) is "																			   //
+						  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; //
             return private_get_output();
         }
 
@@ -856,15 +866,19 @@ namespace dlib
         }
         void back_propagate_error(const tensor& x, const tensor& gradient_input)
         {
+            auto epoch_time = system_clock::now();
             dimpl::subnet_wrapper<subnet_type> wsub(*subnetwork);
             params_grad.copy_size(details.get_layer_params());
             impl::call_layer_backward(details, private_get_output(),
-                gradient_input, wsub, static_cast<tensor&>(params_grad));
+                gradient_input, wsub, static_cast<tensor&>(params_grad));   // HPZ: Most time consumed here! Except for the last layer.
+                std::cout << "(Time for back-inline) is "																			   //
+						  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; //
 
             subnetwork->back_propagate_error(x); 
-
             // zero out get_gradient_input()
             gradient_input_is_stale = true;
+            std::cout << "(Time for back-recursive) is "																			   //
+						  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; //
         }
 
         template <typename solver_type>
@@ -1246,18 +1260,22 @@ namespace dlib
         }
         void back_propagate_error(const tensor& x, const tensor& gradient_input)
         {
+            auto epoch_time = system_clock::now();
             // make sure grad_final is initialized to 0
             if (!have_same_dimensions(x, grad_final))
                 grad_final.copy_size(x);
             grad_final = 0;  
 
+
             subnet_wrapper wsub(x, grad_final, _sample_expansion_factor);
             params_grad.copy_size(details.get_layer_params());
             impl::call_layer_backward(details, private_get_output(),
-                gradient_input, wsub, static_cast<tensor&>(params_grad));
+                gradient_input, wsub, static_cast<tensor&>(params_grad));   // HPZ: Most time consumed.
 
             // zero out get_gradient_input()
             gradient_input_is_stale = true;
+            std::cout << "(Time for back-input) is "																			   //
+						  << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - epoch_time).count() << std::endl; //
         }
 
         template <typename solver_type>
