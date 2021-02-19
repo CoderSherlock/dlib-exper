@@ -972,7 +972,7 @@ namespace dlib
 				network::recv_header(session, &res_header);
 				this->receive_latest_parameters(session, latest_parameters);
 				network::halt_message_session(session);
-				// this->logger->log(this->me.number, this->master.number, 1, "Request updated parameter from the worker" + std::to_string(req_header.dev_index));
+				this->logger->log(res_header.dev_index, this->me.number, 1, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
 			}
 			catch (...)
 			{
@@ -1069,7 +1069,12 @@ namespace dlib
 				this->serialized_upstream_lock->lock();
 				try
 				{
-					// this->logger->log(this->me.number, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(req_header.dev_index));
+					coming_dev_index = req_header.dev_index;
+					req_header.dev_index = this->me.number;
+					inet_pton(AF_INET, this->me.ip.c_str(), &(req_header.ip));
+					req_header.port = this->me.port;
+					req_header.length = 24;
+					this->logger->log(req_header.dev_index, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(req_header.reserve));
 					connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
 					std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 					network::send_header(session, &req_header);

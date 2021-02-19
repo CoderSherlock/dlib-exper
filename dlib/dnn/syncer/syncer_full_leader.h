@@ -587,8 +587,13 @@ namespace dlib
         case task_type::request_updated_parameter:
             // logger(this->me.number, "Request the updated parameter");
 
+            res_header.dev_index = this->me.number;
+			inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
+			res_header.port = this->me.port;
             res_header.type = task_type::response_most_updated_parameter;
+			res_header.length = 24;
 
+			this->logger->log(this->me.number, req_header.dev_index, 0, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
             network::send_header(conn, &res_header);
             dnn_leader<trainer_type, data_type, label_type>::send_parameters(conn);
             network::halt_message_session(conn);
@@ -617,6 +622,7 @@ namespace dlib
 
                 // Receive after-trained parameter
                 this->receive_gradients_from_device(conn, incoming_paras);
+                this->logger->log(req_header.dev_index, this->me.number, 1, "Send trained parameter from the worker" + std::to_string(req_header.reserve));
 
                 std::vector<tensor *> incoming_paras_ptr(this->trainer->num_computational_layers);
 

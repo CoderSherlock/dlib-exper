@@ -212,6 +212,7 @@ namespace dlib
 		req_header.port = this->me.port;
 		req_header.type = task_type::request_updated_parameter;
 		req_header.length = 0;
+		req_header.reserve = this->me.number;
 
 		try
 		{
@@ -246,6 +247,7 @@ namespace dlib
 		req_header.port = this->me.port;
 		req_header.type = task_type::send_trained_parameter;
 		req_header.length = 0;
+		req_header.reserve = this->me.number;
 
 		try
 		{
