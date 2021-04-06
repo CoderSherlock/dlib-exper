@@ -166,7 +166,7 @@ namespace dlib
 				network::send_compressed_tensor(conn, tensors[i]);
 			}
 		}
-		
+
 		char tmp[1];
 		conn->read(tmp, 1);
 	}
@@ -915,7 +915,7 @@ namespace dlib
 		case task_type::request_one_batch:
 			network::recv_a_task(conn, &req_task);
 			this->logger->log(req_header.dev_index, this->me.number, 1, "Request a batch from the worker" + std::to_string(req_header.reserve));
-			
+
 			coming_dev_index = req_header.dev_index;
 			req_header.dev_index = this->me.number;
 			inet_pton(AF_INET, this->me.ip.c_str(), &(req_header.ip));
@@ -1016,7 +1016,6 @@ namespace dlib
 				this->receive_latest_parameters(conn, incoming_paras);
 				this->logger->log(req_header.dev_index, this->me.number, 1, "Send trained parameter from the worker" + std::to_string(req_header.dev_index));
 
-
 				std::vector<tensor *> incoming_paras_ptr(this->trainer->num_computational_layers);
 
 				for (size_t j = 0; j < incoming_paras_ptr.size(); j++)
@@ -1025,11 +1024,7 @@ namespace dlib
 				}
 
 				this->sync_child_indicator_mutex->lock();
-				if (this->sync_child_indicator == 0)
-				{
-					this->sync_global_paras.push_back(global_paras);
-				}
-				this->sync_global_paras.push_back(incoming_paras_ptr);
+				this->sync_global_paras.insert(this->sync_global_paras.begin(), incoming_paras_ptr);
 				this->sync_child_indicator += 1;
 				this->sync_child_indicator_mutex->unlock();
 
@@ -1038,6 +1033,27 @@ namespace dlib
 					this->trainer->read_lock.lock();
 					this->average_ptr(this->sync_global_paras);
 					this->trainer->read_lock.unlock();
+
+					try
+					{
+						coming_dev_index = req_header.dev_index;
+						req_header.dev_index = this->me.number;
+						inet_pton(AF_INET, this->me.ip.c_str(), &(req_header.ip));
+						req_header.port = this->me.port;
+						req_header.length = 24;
+						this->logger->log(req_header.dev_index, this->master.number, 0, "Send trained parameter from the worker" + std::to_string(req_header.reserve));
+						connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+						std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
+						network::send_header(session, &req_header);
+						this->send_parameters_wp(session, incoming_paras);
+						network::recv_header(session, &res_header);
+						network::halt_message_session(session);
+						// this->logger->log(this->me.number, this->master.number, 1, "Send trained parameter from the worker" + std::to_string(req_header.dev_index));
+					}
+					catch (...)
+					{
+						std::cerr << "Something went wrong when request the latest parameters." << std::endl;
+					}
 
 					this->sync_global_paras.clear();
 					this->sync_child_indicator_mutex->lock();
@@ -1064,7 +1080,6 @@ namespace dlib
 				// Receive after-trained parameter
 				this->receive_latest_parameters(conn, incoming_paras);
 				this->logger->log(req_header.dev_index, this->me.number, 1, "Send trained parameter from the worker" + std::to_string(req_header.dev_index));
-
 
 				this->serialized_upstream_lock->lock();
 				try
