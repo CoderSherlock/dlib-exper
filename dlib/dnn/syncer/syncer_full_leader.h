@@ -679,6 +679,7 @@ namespace dlib
 
                 // Receive after-trained parameter
                 this->receive_gradients_from_device(conn, incoming_paras);
+                this->logger->log(req_header.dev_index, this->me.number, 1, "Send trained parameter from the worker" + std::to_string(req_header.reserve));
 
                 std::vector<std::vector<tensor *>> paras;
                 std::vector<tensor *> incoming_paras_ptr(this->trainer->num_computational_layers);

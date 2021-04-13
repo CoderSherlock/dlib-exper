@@ -894,7 +894,6 @@ namespace dlib
 		task_op req_task, res_task;
 		int coming_dev_index = -1;
 		// unsigned long start, end;
-		std::vector<resizable_tensor> latest_parameters;
 
 		res_header.dev_index = this->me.number;
 		inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
@@ -957,28 +956,64 @@ namespace dlib
 			break;
 		case task_type::request_updated_parameter:
 			coming_dev_index = req_header.dev_index;
-			req_header.dev_index = this->me.number;
-			inet_pton(AF_INET, this->me.ip.c_str(), &(req_header.ip));
-			req_header.port = this->me.port;
-			req_header.length = 24;
 
-			// this->serialized_upstream_lock->lock();
-			try
+			if (this->me.sync_type == device_sync_type::sync)
 			{
-				// this->logger->log(this->me.number, this->master.number, 0, "Request updated parameter from the worker" + std::to_string(req_header.dev_index));
-				connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
-				std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
-				network::send_header(session, &req_header); // Send a batch request
-				network::recv_header(session, &res_header);
-				this->receive_latest_parameters(session, latest_parameters);
-				network::halt_message_session(session);
-				this->logger->log(res_header.dev_index, this->me.number, 1, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
+				this->sync_child_indicator_mutex->lock();
+				this->sync_child_indicator_rp += 1;
+				this->sync_child_indicator_mutex->unlock();
+
+				if (this->sync_child_indicator_rp == 1) {
+					req_header.dev_index = this->me.number;
+					inet_pton(AF_INET, this->me.ip.c_str(), &(req_header.ip));
+					req_header.port = this->me.port;
+					req_header.length = 24;
+					// this->serialized_upstream_lock->lock();
+					try
+					{
+						// this->logger->log(this->me.number, this->master.number, 0, "Request updated parameter from the worker" + std::to_string(req_header.dev_index));
+						connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+						std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
+						network::send_header(session, &req_header); // Send a batch request
+						network::recv_header(session, &res_header);
+						this->receive_latest_parameters(session, latest_parameters);
+						network::halt_message_session(session);
+						this->logger->log(res_header.dev_index, this->me.number, 1, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
+					// this->serialized_upstream_lock->unlock();
+					} catch (...)
+					{
+						std::cerr << "Something went wrong when request the latest parameters." << std::endl;
+					}
+				}
+
+				if (this->sync_child_indicator_rp == this->childAmount)
+				{
+					this->sync_child_indicator_rp = 0;
+				}
+				
+			} else {
+				req_header.dev_index = this->me.number;
+				inet_pton(AF_INET, this->me.ip.c_str(), &(req_header.ip));
+				req_header.port = this->me.port;
+				req_header.length = 24;
+				// this->serialized_upstream_lock->lock();
+				try
+				{
+					// this->logger->log(this->me.number, this->master.number, 0, "Request updated parameter from the worker" + std::to_string(req_header.dev_index));
+					connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
+					std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
+					network::send_header(session, &req_header); // Send a batch request
+					network::recv_header(session, &res_header);
+					this->receive_latest_parameters(session, latest_parameters);
+					network::halt_message_session(session);
+					this->logger->log(res_header.dev_index, this->me.number, 1, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
+				// this->serialized_upstream_lock->unlock();
+				} catch (...)
+				{
+					std::cerr << "Something went wrong when request the latest parameters." << std::endl;
+				}
 			}
-			catch (...)
-			{
-				std::cerr << "Something went wrong when request the latest parameters." << std::endl;
-			}
-			// this->serialized_upstream_lock->unlock();
+
 			res_header.dev_index = this->me.number;
 			inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
 			res_header.port = this->me.port;

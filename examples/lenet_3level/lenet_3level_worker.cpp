@@ -192,10 +192,10 @@ int main(int argc, char **argv) try
 	else if (role == device_role::leader)
 	{
 		dnn_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
+		me.sync_type = device_sync_type::sync;
 		leader.set_this_device(me);
 		leader.set_role(role);
 		leader.set_master_device(master);
-		me.sync_type = device_sync_type::sync;
 		leader.exper = 1;
 
 		for (int i = 0; i < slave_list.size(); i++)
@@ -261,7 +261,7 @@ int main(int argc, char **argv) try
 				leader.trainer->read_lock.unlock();
 				record_epoch = leader.epoch;
 
-				if (record_epoch == 1) exit(0);
+				if (record_epoch == distributed_trainer_config.ending_epoch) exit(0);
 			}
 		}
 		// leader.sync(&testing);

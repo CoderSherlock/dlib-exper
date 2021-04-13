@@ -533,7 +533,7 @@ namespace dlib
 
 				write_length += size;
 				write_Ptr += size;
-				dlib::sleep(50);
+				// dlib::sleep(5);
 			}
 
 			if (write_length < write_max)
