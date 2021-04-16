@@ -37,6 +37,7 @@ class dataset {
 private:
 	std::vector<data_type> 			datas;
 	std::vector<label_type> 		labels;
+	int size = -1;
 
 public:
 	bool verbose;
@@ -45,6 +46,7 @@ public:
 	dataset (std::vector<data_type> d, std::vector<label_type> l) {
 		this->datas = d;
 		this->labels = l;
+		this->size = d.size();
 	}
 	dataset (int (*function)(char*, std::vector<data_type>&, std::vector<label_type>&), char *filename){
 		function(filename, this->datas, this->labels);
@@ -52,6 +54,12 @@ public:
 
 	std::vector<data_type> getData() {
 		return this->datas;
+	}
+
+	int getDataSize() {
+		if (this->size == -1) 
+			this->size = this->datas.size();
+		return this->size;
 	}
 
 	std::vector<label_type> getLabel() {

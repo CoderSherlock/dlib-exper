@@ -532,6 +532,7 @@ namespace dlib
         network::msgheader req_header, res_header;
         task_op req_task, res_task;
         unsigned long start, end;
+        int tmp_dd_data_size;
 
         res_header.dev_index = this->me.number;
         inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
@@ -559,10 +560,12 @@ namespace dlib
 
             // Get a task based on task->reserved == comp_capability
             this->current_start_lock->lock();
-            if (this->current_start + BATCH_SIZE * req_task.reserved >= this->default_dataset->getData().size() - 1)
+            this->logger->log(req_header.dev_index, this->me.number, 0, "Batch decision for worker" + std::to_string(req_header.reserve));
+            tmp_dd_data_size = this->default_dataset->getDataSize() - 1;
+            if (this->current_start + BATCH_SIZE * req_task.reserved >= tmp_dd_data_size)
             {
                 start = this->current_start;
-                end = this->default_dataset->getData().size() - 1;
+                end = tmp_dd_data_size;
                 this->current_start = 0;
                 this->epoch += 1;
             }
@@ -573,6 +576,8 @@ namespace dlib
                 this->current_start = end;
             }
             this->current_start_lock->unlock();
+            this->logger->log(req_header.dev_index, this->me.number, 1, "Batch decision for worker" + std::to_string(req_header.reserve));
+
 
             res_task.opcode = task_type::train_one_batch;
             std::memcpy(&res_task.operand1, &start, sizeof(res_task.operand1));
