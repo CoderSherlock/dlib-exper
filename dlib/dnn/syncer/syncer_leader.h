@@ -859,7 +859,7 @@ namespace dlib
 			std::cerr << "Unable to create a listener" << std::endl;
 		}
 
-		while (true)
+		while (this->listener_status)
 		{
 			connection *src;
 
@@ -889,10 +889,11 @@ namespace dlib
 			  typename label_type>
 	void dnn_leader<trainer_type, data_type, label_type>::listener_worker_thread(connection *conn)
 	{
-		std::cout << "Calling a full leader worker thread ..." << std::endl;
+		std::cout << "Calling a cordiantor leader worker thread ..." << std::endl;
 		network::msgheader req_header, res_header;
 		task_op req_task, res_task;
 		int coming_dev_index = -1;
+		int local_sync_child_indicator_rp;
 		// unsigned long start, end;
 
 		res_header.dev_index = this->me.number;
@@ -961,9 +962,10 @@ namespace dlib
 			{
 				this->sync_child_indicator_mutex->lock();
 				this->sync_child_indicator_rp += 1;
+				local_sync_child_indicator_rp = this->sync_child_indicator_rp;
 				this->sync_child_indicator_mutex->unlock();
 
-				if (this->sync_child_indicator_rp == 1) {
+				if (local_sync_child_indicator_rp == 1) {
 					req_header.dev_index = this->me.number;
 					inet_pton(AF_INET, this->me.ip.c_str(), &(req_header.ip));
 					req_header.port = this->me.port;
@@ -986,9 +988,11 @@ namespace dlib
 					}
 				}
 
-				if (this->sync_child_indicator_rp == this->childAmount)
+				if (local_sync_child_indicator_rp == this->childAmount)
 				{
+					this->sync_child_indicator_mutex->lock();
 					this->sync_child_indicator_rp = 0;
+					this->sync_child_indicator_mutex->unlock();
 				}
 				
 			} else {

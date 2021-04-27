@@ -64,6 +64,7 @@ namespace dlib
 		int verbose = 1;
 		int num_debug = 0;
 		int exper = 0;
+		int listener_status = 1;
 
 		std::ofstream * logfile;
 		logbot *logger;

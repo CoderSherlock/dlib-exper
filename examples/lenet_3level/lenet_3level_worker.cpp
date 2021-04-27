@@ -261,7 +261,10 @@ int main(int argc, char **argv) try
 				leader.trainer->read_lock.unlock();
 				record_epoch = leader.epoch;
 
-				if (record_epoch == distributed_trainer_config.ending_epoch) exit(0);
+				if (record_epoch == distributed_trainer_config.ending_epoch) {
+					leader.listener_status = 0;	
+					break;
+				}
 			}
 		}
 		// leader.sync(&testing);
@@ -285,11 +288,12 @@ int main(int argc, char **argv) try
 
 	std::cout << trainer << std::endl;
 	//sleep ((unsigned int) 3600);
-
+	
 	net.clean();
 	serialize("permission_network.dat") << net;
 
 	net_to_xml(net, "permission.xml");
+	exit(0);
 }
 catch (std::exception &e)
 {

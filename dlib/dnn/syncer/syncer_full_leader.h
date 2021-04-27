@@ -498,7 +498,7 @@ namespace dlib
             std::cerr << "Unable to create a listener" << std::endl;
         }
 
-        while (true)
+        while (this->listener_status)
         {
             connection *src;
 

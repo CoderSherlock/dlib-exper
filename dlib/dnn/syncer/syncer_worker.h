@@ -234,8 +234,10 @@ namespace dlib
 
 
 		this->trainer->distributed_signal.get_mutex().lock();
-		if (this->trainer->ready_status != 3)
+		if (this->trainer->ready_status < 3) {
+			cout << "Really? Am I stucked at " << this->trainer->ready_status << " here?" << std::endl;
 			this->trainer->distributed_signal.wait();
+		}
 		this->trainer->status_lock.unlock();
 		this->logger->log(this->me.number, this->master.number, 1, "Training");
 

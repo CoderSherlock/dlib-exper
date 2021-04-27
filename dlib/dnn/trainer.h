@@ -759,9 +759,9 @@ namespace dlib
 
             main_iteration_counter = 0;
 
-
+            this->status_lock.lock();
             this->ready_status = 1;
-            
+            this->status_lock.unlock();
 
 
             while(job_pipe.dequeue(next_job))
@@ -959,8 +959,11 @@ end:
                         learning_rate = lr_schedule(lr_schedule.size()-1)*0.99;
                 }
 
-                if (isDistributed)
+                if (isDistributed) {
+                    this->status_lock.lock();
                     ready_status = 4;
+                    this->status_lock.unlock();
+                }
             }
         }
         catch(...)
