@@ -137,7 +137,7 @@ namespace dlib
 		// Request a task fit its computability
 		network::msgheader req_header, res_header;
 		task_op req_task, res_task;
-		dataset<matrix<unsigned char>, unsigned long> local_training;
+		dataset<data_type, label_type> local_training;
 		auto batch_time = system_clock::now(); // *_* Time for the training
 		auto breakdown = system_clock::now();  // *_* Breakdown time for training procedure
 

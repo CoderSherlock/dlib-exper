@@ -1,6 +1,6 @@
-1 1 4 54
-/home/pengzhan/Github/data/mnist
-/home/pengzhan/Github/data/mnist
+1 1 4 5
+/home/pengzhan/Github/statxdroid/statx/Local-training-experiment/5-large-number-benigns/Local_training.csv
+/home/pengzhan/Github/statxdroid/statx/Local-training-experiment/5-large-number-benigns/Local_testing.csv
 0 127.0.0.1 15001 2 -1
 1 127.0.0.1 13001 0 5
 2 127.0.0.1 13002 0 5
