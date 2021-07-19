@@ -963,6 +963,8 @@ namespace dlib
 				this->sync_child_indicator_mutex->lock();
 				this->sync_child_indicator_rp += 1;
 				local_sync_child_indicator_rp = this->sync_child_indicator_rp;
+				if (local_sync_child_indicator_rp == 1)
+					this->updated_parameter_ready = 0;
 				this->sync_child_indicator_mutex->unlock();
 
 				if (local_sync_child_indicator_rp == 1) {
@@ -986,6 +988,10 @@ namespace dlib
 					{
 						std::cerr << "Something went wrong when request the latest parameters." << std::endl;
 					}
+
+					this->sync_child_indicator_mutex->lock();
+					this->updated_parameter_ready = 1;
+					this->sync_child_indicator_mutex->unlock();
 				}
 
 				if (local_sync_child_indicator_rp == this->childAmount)
@@ -994,6 +1000,18 @@ namespace dlib
 					this->sync_child_indicator_rp = 0;
 					this->sync_child_indicator_mutex->unlock();
 				}
+
+				while(this->updated_parameter_ready == 0);
+				
+				res_header.dev_index = this->me.number;
+				inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
+				res_header.port = this->me.port;
+				res_header.type = task_type::response_most_updated_parameter;
+				res_header.length = 24;
+				this->logger->log(this->me.number, coming_dev_index, 0, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
+				network::send_header(conn, &res_header);
+				dnn_leader<trainer_type, data_type, label_type>::send_parameters_wp(conn, latest_parameters);
+				network::halt_message_session(conn);
 				
 			} else {
 				req_header.dev_index = this->me.number;
@@ -1016,17 +1034,17 @@ namespace dlib
 				{
 					std::cerr << "Something went wrong when request the latest parameters." << std::endl;
 				}
-			}
 
-			res_header.dev_index = this->me.number;
-			inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
-			res_header.port = this->me.port;
-			res_header.type = task_type::request_one_batch;
-			res_header.length = 24;
-			this->logger->log(this->me.number, coming_dev_index, 0, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
-			network::send_header(conn, &res_header);
-			dnn_leader<trainer_type, data_type, label_type>::send_parameters_wp(conn, latest_parameters);
-			network::halt_message_session(conn);
+				res_header.dev_index = this->me.number;
+				inet_pton(AF_INET, this->me.ip.c_str(), &(res_header.ip));
+				res_header.port = this->me.port;
+				res_header.type = task_type::response_most_updated_parameter;
+				res_header.length = 24;
+				this->logger->log(this->me.number, coming_dev_index, 0, "Request updated parameter from the worker" + std::to_string(req_header.reserve));
+				network::send_header(conn, &res_header);
+				dnn_leader<trainer_type, data_type, label_type>::send_parameters_wp(conn, latest_parameters);
+				network::halt_message_session(conn);
+			}
 
 			break;
 

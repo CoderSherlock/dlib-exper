@@ -152,6 +152,7 @@ namespace dlib
 		mutex *serialized_upstream_lock;
 		int childAmount = 0;
 		volatile int sync_child_indicator_rp = 0;
+		volatile int updated_parameter_ready = 0;
 		volatile int sync_child_indicator = 0;
 		std::vector<resizable_tensor> latest_parameters;
 		mutex *sync_child_indicator_mutex;
