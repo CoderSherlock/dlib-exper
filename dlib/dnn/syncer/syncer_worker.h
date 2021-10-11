@@ -135,6 +135,7 @@ namespace dlib
 		// TODO: check if trainer is busy, if then wait until it become idle.
 
 		// Request a task fit its computability
+		this->logger->log(this->me.number, this->me.number, 0, "AB - a start of AB");
 		network::msgheader req_header, res_header;
 		task_op req_task, res_task;
 		dataset<data_type, label_type> local_training;
@@ -269,6 +270,7 @@ namespace dlib
 		std::cout << "Learning rate is " << this->trainer->learning_rate << std::endl;
 
 		std::cout << "Time for batch is " << std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - batch_time).count() << std::endl; // *_*
+		this->logger->log(this->me.number, this->me.number, 1, "AB - a start of AB");
 		return 1;
 	}
 
