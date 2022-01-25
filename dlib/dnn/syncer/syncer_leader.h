@@ -914,7 +914,7 @@ namespace dlib
 			break;
 		case task_type::request_one_batch:
 			network::recv_a_task(conn, &req_task);
-			this->logger->log(req_header.dev_index, this->me.number, 1, "Request a batch from the worker" + std::to_string(req_header.reserve));
+			this->logger->log(req_header.dev_index, this->me.number, 1, "Request a job - worker" + std::to_string(req_header.reserve));
 
 			coming_dev_index = req_header.dev_index;
 			req_header.dev_index = this->me.number;
@@ -926,7 +926,7 @@ namespace dlib
 			// this->serialized_upstream_lock->lock();
 			try
 			{
-				// this->logger->log(this->me.number, this->master.number, 0, "Request a batch from the worker" + std::to_string(req_header.dev_index));
+				this->logger->log(this->me.number, this->master.number, 0, "Request a job - worker" + std::to_string(req_header.dev_index));
 				connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
 				std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 				network::send_header(session, &req_header); // Send a batch request
@@ -934,7 +934,7 @@ namespace dlib
 				network::recv_header(session, &res_header);
 				network::recv_a_task(session, &res_task);
 				network::halt_message_session(session);
-				// this->logger->log(this->me.number, this->master.number, 1, "Request a batch from the worker" + std::to_string(req_header.dev_index));
+				this->logger->log(this->me.number, this->master.number, 1, "Receive a job - worker" + std::to_string(req_header.dev_index));
 			}
 			catch (...)
 			{
@@ -949,7 +949,7 @@ namespace dlib
 			res_header.type = task_type::request_one_batch;
 			res_header.length = 24;
 
-			this->logger->log(this->me.number, coming_dev_index, 0, "Request a batch from the worker" + std::to_string(req_header.reserve));
+			this->logger->log(this->me.number, coming_dev_index, 0, "Receive a job - worker" + std::to_string(req_header.reserve));
 			network::send_header(conn, &res_header);
 			network::send_a_task(conn, res_task);
 			network::halt_message_session(conn);

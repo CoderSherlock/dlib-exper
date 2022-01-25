@@ -156,7 +156,7 @@ namespace dlib
 
 		// try
 		// {
-		this->logger->log(req_header.dev_index, this->master.number, 0, "Request a batch from the worker" + std::to_string(req_header.reserve));
+		this->logger->log(req_header.dev_index, this->master.number, 0, "Request a job - worker" + std::to_string(req_header.reserve));
 		connection *session = network::create_message_session(this->master.ip, this->master.port, this->me.ip);
 		std::cout << __FILE__ << ":" << __LINE__ << " " << session->get_socket_descriptor() << std::endl;
 		network::send_header(session, &req_header); // Send a batch request
@@ -164,7 +164,7 @@ namespace dlib
 		network::recv_header(session, &res_header);
 		network::recv_a_task(session, &res_task);
 		network::halt_message_session(session);
-		this->logger->log(res_header.dev_index, this->me.number, 1, "Request a batch from the worker" + std::to_string(req_header.reserve));
+		this->logger->log(res_header.dev_index, this->me.number, 1, "Receive a job - worker" + std::to_string(req_header.reserve));
 		// }
 		// catch (...)
 		// {

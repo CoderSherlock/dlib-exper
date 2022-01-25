@@ -554,6 +554,7 @@ namespace dlib
         case task_type::request_one_batch:
             // logger(this->me.number, "Request a batch");
             network::recv_a_task(conn, &req_task);
+			this->logger->log(req_header.dev_index, this->me.number, 1, "Request a job - worker" + std::to_string(req_header.reserve));
 
             res_header.length = sizeof(res_task);
             res_header.type = task_type::train_one_batch;
@@ -584,6 +585,7 @@ namespace dlib
             std::memcpy(&res_task.operand2, &end, sizeof(res_task.operand2));
             std::cout << res_task.opcode << ":" << res_task.operand1 << "~" << res_task.operand2 << std::endl;
             // Send task back
+			this->logger->log(this->me.number, req_header.dev_index, 0, "Receive a job - worker" + std::to_string(req_header.reserve));
             network::send_header(conn, &res_header);
             network::send_a_task(conn, res_task);
             network::halt_message_session(conn);
