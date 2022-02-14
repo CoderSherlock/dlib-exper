@@ -170,7 +170,8 @@ namespace dlib
             {
                 if (cli_tensors[i].size() != 0)
                 {
-                    network::receive_compressed_tensor(src, &cli_tensors[i]);
+                    for(int tt = 0; tt < TRANS_TIME; tt++)
+                        network::receive_compressed_tensor(src, &cli_tensors[i]);
                 }
             }
             char tmp = ' ';

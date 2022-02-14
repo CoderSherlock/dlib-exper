@@ -305,8 +305,10 @@ namespace dlib
 
         for (size_t i = 0; i < updated.size(); i++)
         {
-            if (updated[i].size() != 0)
-                network::receive_compressed_tensor(src, &updated[i]);
+            if (updated[i].size() != 0) {
+                for(int tt = 0; tt < TRANS_TIME; tt++)
+                    network::receive_compressed_tensor(src, &updated[i]);
+            }
         }
 
         char tmp = ' ';

@@ -163,7 +163,8 @@ namespace dlib
 			if (tensors[i]->size() != 0)
 			{
 				// print_tensor(tensors[i], 10);
-				network::send_compressed_tensor(conn, tensors[i]);
+				for(int tt = 0; tt < TRANS_TIME; tt++)
+					network::send_compressed_tensor(conn, tensors[i]);
 			}
 		}
 
@@ -188,7 +189,8 @@ namespace dlib
 			if (temp[i]->size() != 0)
 			{
 				// print_tensor(tensors[i], 10);
-				network::send_compressed_tensor(conn, temp[i]);
+				for(int tt = 0; tt < TRANS_TIME; tt++)
+					network::send_compressed_tensor(conn, temp[i]);
 			}
 		}
 

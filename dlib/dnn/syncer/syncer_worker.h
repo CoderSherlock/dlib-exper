@@ -103,7 +103,8 @@ namespace dlib
 
 			if (tensors[i]->size() != 0)
 			{
-				network::send_compressed_tensor(dst, tensors[i]);
+				for(int tt = 0; tt < TRANS_TIME; tt++)
+					network::send_compressed_tensor(dst, tensors[i]);
 			}
 		}
 		

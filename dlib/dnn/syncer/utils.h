@@ -11,6 +11,7 @@
 #define COMP_BUFFER_SIZE 4096
 #define SYNC_VERBOSE 0
 #define NUM_DEBUG 0
+#define TRANS_TIME 10
 
 namespace dlib
 {
