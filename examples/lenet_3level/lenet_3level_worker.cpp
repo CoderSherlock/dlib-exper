@@ -1,5 +1,5 @@
 /*
- *	This Network is an experiemental neural network for permission analysis (Distributed ver.)
+ *	This Network is an experiemental neural network for lenet (Distributed ver.)
  *	Writer: CoderSherlock
  */
 

@@ -1,3 +1,23 @@
+/*
+ *	This Network is an experiemental neural network for lenet (Distributed ver.)
+ *	Writer: CoderSherlock
+ */
+
+#include <dlib/dnn.h>
+#include <iostream>
+#include <dlib/data_io.h>
+#include <chrono>
+#include <csignal>
+
+// #include "../dnn_dist_data.h"
+
+#define ASYNC 1
+
+using namespace std;
+using namespace dlib;
+using std::chrono::system_clock;
+
+
 // The contents of this file are in the public domain. See LICENSE_FOR_EXAMPLE_PROGRAMS.txt
 /*
     This is an example illustrating the use of the deep learning tools from the
@@ -22,35 +42,6 @@
     Szegedy, Christian, et al. "Going deeper with convolutions." Proceedings of
     the IEEE Conference on Computer Vision and Pattern Recognition. 2015.
 */
-
-#include <dlib/dnn.h>
-#include <iostream>
-#include <dlib/data_io.h>
-
-#include "../dnn_dist_data.h"
-
-using namespace std;
-using namespace dlib;
-
-std::vector<device> loadSlaves (char *filename) {
-	std::ifstream f;
-	f.open (filename);
-
-	std::vector<device> ret;
-
-	int number = 0;
-	std::string ip;
-	int port = -1;
-
-	while (f >> ip >> port) {
-		device temp (number, ip, port);
-		ret.push_back (temp);
-	}
-
-	f.close();
-	return ret;
-}
-
 
 // Inception layer has some different convolutions inside.  Here we define
 // blocks as convolutions with different kernel size that we will use in
@@ -83,184 +74,275 @@ using net_type = loss_multiclass_log<
         input<matrix<unsigned char>>
         >>>>>>>>;
 
-int main(int argc, char** argv) try
+int get_comp_ability(int number, std::list<device> device_list)
 {
-	if (argc < 2) {
-		cout << "Master program has invalid argumnets" << endl;
+	int ret = 0;
+	for (auto t = device_list.begin(); t != device_list.end(); ++t)
+	{
+		if (t->master == number)
+		{
+			ret += get_comp_ability(t->number, device_list);
+		}
+	}
+	if (ret == 0)
+		return 1;
+	return ret;
+}
+
+int main(int argc, char **argv) try
+{
+
+	// signal (SIGINT, to_exit);
+
+	if (argc < 2)
+	{
+		cout << "Master program has invalid arguments" << endl;
 		return 1;
 	}
 
-	char *data_path;					// Training & Testing data
-	char *slave_path;					// File contains all slave ip and port information
+	char *config_path; 						// File contains all slave ip and port information
+	device me;								// device information include ip and port
+	device master;							// parent device information
+	std::vector<device> slave_list;			// children device information
+	dt_config distributed_trainer_config;	// All-topology network structure information
 
-	int ismaster = 0;
-	device me;
-	device master;
 
-	std::vector<device> slave_list;
-
+	// Get the mode, ip and port
 	me.ip = argv[1];
-	me.port =atoi (argv[2]);
-	me.number = atoi (argv[3]);
+	me.port = atoi(argv[2]);
+	me.number = atoi(argv[3]);
+	me.sync_type = device_sync_type::async;	// Default as sync
 
-	for (int i = 1; i < argc; i++) {
-		if (strcmp (argv[i], "-d") == 0) {
-			data_path = argv[i + 1];
-			std::cout << "Dataset:\t" << data_path << std::endl;
-		}
-
-		if (strcmp (argv[i], "-s") == 0) {
-			slave_path = argv[i + 1];
-			std::cout << "Slaveset:\t" << slave_path << std::endl;
-		}
-	}
-
-	// Get slaves
-	slave_list = loadSlaves (slave_path);
-
-	// Print self information
-	std::cout << "Local Machine info:\n";
-	std::cout << "slave" << " " << me.ip << ":" << me.port << " " << me.number << std::endl;
-
-	// Get data
-	dataset<matrix<unsigned char>, unsigned long> training (load_mnist_training_data, data_path);
-	dataset<matrix<unsigned char>, unsigned long> testing (load_mnist_testing_data, data_path);
-	training = training.split (0, 1000);
-	dataset<matrix<unsigned char>, unsigned long> local_training = training = training.split_by_group (slave_list.size(), me.number);
-
-    // Make an instance of our inception network.
-    net_type net;
-    cout << "The net has " << net.num_layers << " layers in it." << endl;
-    cout << net << endl;
+	//////////////////////////////////////////////////////////////////////////////////////
+	/* Print self information *///////////////////////////////////////////////////////////
+	std::cout << "Local Machine info:\n";												//
+	std::cout << " " << me.ip << ":" << me.port << " " << me.number << std::endl;		//
+																						//
+	for (int i = 1; i < argc; i++)														//
+	{																					//
+		if (strcmp(argv[i], "-c") == 0)													//
+		{																				//
+			config_path = argv[i + 1];													//
+			std::cout << "Slaveset:\t" << config_path << std::endl;						//
+		}																				//
+	}																					//
+	//////////////////////////////////////////////////////////////////////////////////////
 
 
-    cout << "Traning NN..." << endl;
-    dnn_trainer<net_type> trainer(net);
-    trainer.set_learning_rate(0.01);
-    trainer.set_min_learning_rate(0.00001);
-    trainer.set_mini_batch_size(128);
-    trainer.be_verbose();
-    trainer.set_synchronization_file("inception_sync", std::chrono::seconds(20));
-    // Train the network.  This might take a few minutes...
-    // trainer.train(training_images, training_labels);
+
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/* Fetch distributed-learning-system's configuration *////////////////////////////////////////////////////////////////////////////////
+	distributed_trainer_config.read_config(config_path);																				//
+																																		//
+	device_role role = distributed_trainer_config.get_role(me.ip, me.port);																		//
+	me.number = distributed_trainer_config.get_number(me.ip, me.port);
+	master = distributed_trainer_config.get_my_master(me);																	//
+																																		//
+	// Validating current node's role -> worker or leader or supleader?																	//
+	std::cout << "I'm a " << (role == device_role::worker ? "worker" : (role == device_role::leader ? "leader" : (role == device_role::supleader ? "supleader" : "undecided"))) << std::endl;	//
+																																		//
+	// Get slaves																														//
+	for (auto i = distributed_trainer_config.device_list.begin(); i != distributed_trainer_config.device_list.end(); ++i)				//
+	{																																	//
+		if (i->master == me.number)																										//
+		{																																//
+			i->comp_ability = get_comp_ability(i->number, distributed_trainer_config.device_list);										//
+			slave_list.push_back(*i);																									//
+		}																																//
+	}																																	//
+																																		//
+	me.comp_ability = 0;																												//
+	for (auto i = slave_list.begin(); i != slave_list.end(); ++i)																		//
+	{																																	//
+		me.comp_ability += i->comp_ability;																								//
+	}																																	//
+																																		//
+	// Get training data loaded																											//
+	char *training_data_path = strdup(distributed_trainer_config.training_dataset_path.begin()->c_str());								//
+																																		//
+	dataset<matrix<unsigned char>, unsigned long> training(load_mnist_training_data, training_data_path);								//
+																																		//
+	char *testing_data_path = strdup(distributed_trainer_config.testing_dataset_path.begin()->c_str());									//
+	dataset<matrix<unsigned char>, unsigned long> testing(load_mnist_testing_data, testing_data_path);									//
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
-		char sync_filename[30];
-	sprintf (sync_filename, "backup.%d.mm", me.number);
-	trainer.set_synchronization_file (sync_filename, std::chrono::seconds (20));
+	training = training.split(0, 6000);						// Since lenet used mnist dataset with amount of 60000, we cut it to 1/10 of
+	std::cout << training.getData().size() << std::endl;	// the original for fast training, not necessary
+	
+	
+	
+	int all = 0, ben = 0;
 
-	// HPZ: Setup synchronized protocol and test for the connection availablitiy.
+	/*
+	 * Define net_type (By CoderSherlock)
+	 */
+	net_type net;
+
+	dnn_trainer<net_type> trainer(net);
+
+	trainer.set_learning_rate(0.01);
+	trainer.set_min_learning_rate(0.00001);
+	trainer.set_mini_batch_size(12);
+	trainer.be_verbose();
+
+	// HPZ: Setup synchronized protocol and test for the connection availability.
 	using trainer_type = dnn_trainer<net_type>;
-	dnn_worker<trainer_type> syncer (&trainer, 0);
-	syncer.set_this_device (me);
 
-	// TODO: Wait for master connect
-	if (!syncer.wait_for_master_init()) {
-		std::cerr << "Error happens when master send init message" << std::endl;
-		exit (0);
+	/* Setup memory-disk synchronization file 				*
+	 * Commented since this is not working on odroid linux	*/
+	// char sync_filename[30];
+	// sprintf(sync_filename, "backup.%s.mm", "pe_test");
+	// trainer.set_synchronization_file(sync_filename, std::chrono::seconds(60));
+
+	if (role == device_role::worker)
+	{
+		dnn_worker<trainer_type, matrix<unsigned char>, unsigned long> worker(&trainer);
+		int finished_batch = 0;
+
+		worker.set_this_device(me);
+		worker.set_role(role);
+		worker.set_master_device(master);
+
+		worker.trainer->isDistributed = 1;
+		worker.default_dataset = &training;
+		worker.init_thread_pool();
+		worker.init_trainer(training);
+
+		while (true)
+		{
+			int do_task_status = worker.do_one_task_without_wait();
+			if(do_task_status == -1)		// Recv an error task -> very likely to be a stop training signal 
+				break;
+			else if (do_task_status == 1){
+				finished_batch += 1;
+				continue;
+			}
+			
+			
+			if (trainer.learning_rate <= 0.001)
+			{
+				std::cout << "---------------------------" << std::endl;
+				std::cout << "|Exit because l_rate      |" << std::endl;
+				std::cout << "---------------------------" << std::endl;
+				break;
+			}
+
+			if (finished_batch >= 500000)
+			{
+				std::cout << "------------------------------" << std::endl;
+				std::cout << "|Exit because 500k batches   |" << std::endl;
+				std::cout << "------------------------------" << std::endl;
+				break;
+			}
+		}
 	}
+	else if (role == device_role::leader)
+	{
+		dnn_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
+		me.sync_type = device_sync_type::sync;
+		leader.set_this_device(me);
+		leader.set_role(role);
+		leader.set_master_device(master);
+		leader.exper = 1;
 
-	trainer.isDistributed = 1;
-
-	// HPZ: Manually check if any problems happened in the init
-	sleep ((unsigned int) 0);
-
-	int epoch = 0, batch = 0;
-	int mark = 0;
-	auto time = 0;
-
-	// sleep ((unsigned int) (me.number % 2) * 10);
-
-	while (true) {
-		while (trainer.synchronization_status != 4) {};
-
-		mark += 1;
-
-		auto epoch_time = system_clock::now();  // HPZ: Counting
-
-		while (trainer.status_lock.trylock() == 0);
-
-		if (trainer.synchronization_status != 3)
-			std::cout << "Something wrong with sync lock: current: " << trainer.synchronization_status << "\t Going to set: 0" << std::endl;
-
-		trainer.synchronization_status = 0;
-		std::cout << "[dnn_master]: init done, may start to train" << std::endl;
-		trainer.status_lock.unlock();
-
-		epoch += trainer.train_one_batch (local_training.getData(), local_training.getLabel());
-
-		// Wait for ready
-		std::cout << "Im here" << std::endl;
-
-		while (trainer.synchronization_status != 1) {
-			asm ("");
-		}//std::cout<<"wait to sync" << std::endl;}
-
-		// std::cout << "[dnn_master]: start to sync" << std::endl;
-
-		std::cout << "(train time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
-		// std::cout << "[Before]" << std::endl;
-		// accuracy(net, local_training_images, local_training_labels);
-		// accuracy(net, testing_images, testing_labels);
-
-		auto sync_time = system_clock::now();  // HPZ: Counting
-		syncer.sn_sync();
-		std::cout << "(sync time " << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - sync_time).count() << std::endl;  // HPZ: Counting
-
-		// serialize(trainer, std::cout);
-
-		// Wait for all devices send back to their paramaters
-
-		while (trainer.synchronization_status != 4) {} //std::cout <<"wait to update"<<std::endl;}
-
-		std::cout << "Finish batch " << batch++ << std::endl;
-		std::cout << "Time for batch is "
-				  << std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count() << std::endl;  // HPZ: Counting
-		time += std::chrono::duration_cast<std::chrono::milliseconds> (system_clock::now() - epoch_time).count();
-
-		std::cout << trainer.learning_rate << std::endl;
-		// std::cout << "[After]" << std::endl;
-		// local_training.accuracy (net);
-		// accuracy(net, testing_images, testing_labels);
-		//
-
-		if (trainer.learning_rate <= 0.001) {
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "|Exit because l_rate      |" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			break;
+		for (int i = 0; i < slave_list.size(); i++)
+		{
+			leader.add_slave(slave_list[i]);
 		}
 
-		if (epoch >= 30) {
-			std::cout << "---------------------------" << std::endl;
-			std::cout << "|Exit because 30 epochs   |" << std::endl;
-			std::cout << "---------------------------" << std::endl;
-			break;
+		leader.trainer->isDistributed = 1;
+		leader.default_dataset = &training;
+		leader.init_trainer(training);
+		leader.init_thread_pool();
+		
+		unsigned long record_epoch = 0;
+		while(1) { 
+			// if (leader.epoch != record_epoch) {
+			// 	leader.trainer->read_lock.lock();
+			// 	training.accuracy(net);
+			// 	leader.trainer->read_lock.unlock();
+			// 	record_epoch = leader.epoch;
+
+			// 	if (record_epoch == 1) exit(0);
+			// }
 		}
 
+	}
+	else if (role == device_role::supleader)
+	{
+		dnn_full_leader<trainer_type, matrix<unsigned char>, unsigned long> leader(&trainer, device_role(0));
+		me.sync_type = device_sync_type::async;
+		leader.set_this_device(me);
+		leader.set_role(role);
+		leader.exper = 1;
 
+		for (int i = 0; i < slave_list.size(); i++)
+		{
+			leader.add_slave(slave_list[i]);
+		}
+
+		trainer.isDistributed = 1;
+		leader.default_dataset = &training;
+		leader.init_trainer();
+		leader.init_thread_pool();
+
+		std::cout << "Finish initialization training, it takes " << 0 << " seconds" << std::endl;
+
+		// leader.init_slaves();
+		// leader.init_receiver_pool();
+
+		std::cout << "Finished Initialization, now start training procedures" << std::endl;
+
+		auto real_time = system_clock::now();
+		auto print_time = 0;
+		leader.ending_time = distributed_trainer_config.ending_epoch;
+		std::cout << "Training is set to be finished after " << leader.ending_time << " epochs" << std::endl;
+
+		dataset<matrix<unsigned char>, unsigned long> testing = training;
+
+		unsigned long record_epoch = 0;
+		while(1) { 
+			if (leader.epoch != record_epoch) {
+				leader.trainer->read_lock.lock();
+				// training.accuracy(net);
+				leader.trainer->read_lock.unlock();
+				record_epoch = leader.epoch;
+
+				if (record_epoch == distributed_trainer_config.ending_epoch) {
+					leader.listener_status = 0;	
+					break;
+				}
+			}
+		}
+		// leader.sync(&testing);
+		print_time = std::chrono::duration_cast<std::chrono::milliseconds>(system_clock::now() - real_time).count();
+		std::cout << "All time: " << print_time << std::endl;
+	}
+	else
+	{
 	}
 
-	// trainer.train(training_images, training_labels);
+	// Validating training dataset
+	std::cout << *(distributed_trainer_config.training_dataset_path.begin()) << std::endl;
+	training.accuracy(net);
+	std::cout << std::endl;
 
-	// local_training.accuracy (net);
-	// testing.accuracy (net);
-	std::cout << "All time: " << time << std::endl;
+	// Validating testing dataset
+	std::cout << *(distributed_trainer_config.testing_dataset_path.begin()) << std::endl;
+	testing.accuracy(net);
+	std::cout << std::endl;
+
+
 	std::cout << trainer << std::endl;
-	sleep ((unsigned int) 3600);
+	//sleep ((unsigned int) 3600);
+	
+	net.clean();
+	serialize("permission_network.dat") << net;
 
-    net.clean();
-    serialize("mnist_network_inception.dat") << net;
-    // Now if we later wanted to recall the network from disk we can simply say:
-    // deserialize("mnist_network_inception.dat") >> net;
-
-
-    // Now let's run the training images through the network.  This statement runs all the
-    // images through it and asks the loss layer to convert the network's raw output into
-    // labels.  In our case, these labels are the numbers between 0 and 9.
-
+	net_to_xml(net, "permission.xml");
+	exit(0);
 }
-catch(std::exception& e)
+catch (std::exception &e)
 {
-    cout << e.what() << endl;
+	cout << e.what() << endl;
 }
-
